@@ -35,7 +35,7 @@ namespace test {
 
 namespace {
 
-class SignTest : public RWUserSessionTest,
+class SignTest : public ROEitherSessionTest,
                  public ::testing::WithParamInterface<string> {
  public:
   SignTest()
@@ -108,7 +108,7 @@ TEST_P(SignTest, SignFailVerifyShort) {
              g_fns->C_Verify(session_, data_.get(), datalen_, output, 4));
 }
 
-TEST_F(ROUserSessionTest, SignVerifyRecover) {
+TEST_F(ROEitherSessionTest, SignVerifyRecover) {
   REQUIRE_MECHANISM(CKM_RSA_PKCS_KEY_PAIR_GEN, CKF_GENERATE_KEY_PAIR);
   REQUIRE_MECHANISM(CKM_RSA_PKCS, CKF_SIGN_RECOVER | CKF_VERIFY_RECOVER);
   vector<CK_ATTRIBUTE_TYPE> public_attrs = {CKA_VERIFY_RECOVER, CKA_ENCRYPT};

@@ -121,7 +121,7 @@ ObjectAttributes UnwrapAttributes(CK_KEY_TYPE* type) {
 
 }  // namespace
 
-TEST_F(ROUserSessionTest, WrapUnwrap) {
+TEST_F(ReadOnlySessionTest, WrapUnwrap) {
   LOAD_WRAPPING_PROFILES(profiles, CKF_WRAP | CKF_UNWRAP);
   for (const WrappingProfile& profile : profiles) {
     SCOPED_TRACE(profile.name);
@@ -172,7 +172,7 @@ TEST_F(ROUserSessionTest, WrapUnwrap) {
   }
 }
 
-TEST_F(ROUserSessionTest, WrapInvalid) {
+TEST_F(ReadOnlySessionTest, WrapInvalid) {
   LOAD_WRAPPING_PROFILES(profiles, CKF_WRAP);
   for (const WrappingProfile& profile : profiles) {
     SCOPED_TRACE(profile.name);
@@ -210,7 +210,7 @@ TEST_F(ROUserSessionTest, WrapInvalid) {
   }
 }
 
-TEST_F(ROUserSessionTest, UnwrapInvalid) {
+TEST_F(ReadOnlySessionTest, UnwrapInvalid) {
   LOAD_WRAPPING_PROFILES(profiles, CKF_WRAP | CKF_UNWRAP);
   for (const WrappingProfile& profile : profiles) {
     SCOPED_TRACE(profile.name);

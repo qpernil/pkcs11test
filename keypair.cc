@@ -86,7 +86,7 @@ RSAKeyData kRsaKey1 = {
 
 }  // namespace
 
-TEST_F(RWUserSessionTest, EncryptDecrypt) {
+TEST_F(ROEitherSessionTest, EncryptDecrypt) {
   REQUIRE_MECHANISM(CKM_RSA_PKCS_KEY_PAIR_GEN, CKF_GENERATE_KEY_PAIR);
   REQUIRE_MECHANISM(CKM_RSA_PKCS, CKF_ENCRYPT | CKF_DECRYPT);
   vector<CK_ATTRIBUTE_TYPE> public_attrs = {CKA_ENCRYPT};
@@ -121,7 +121,7 @@ TEST_F(RWUserSessionTest, EncryptDecrypt) {
   EXPECT_EQ(0, memcmp(plaintext, recovered_plaintext, plaintext_len));
 }
 
-TEST_F(RWUserSessionTest, PublicExponent4Bytes) {
+TEST_F(ROEitherSessionTest, PublicExponent4Bytes) {
   REQUIRE_MECHANISM(CKM_RSA_PKCS_KEY_PAIR_GEN, CKF_GENERATE_KEY_PAIR);
   CK_ULONG modulus_bits = 1024;
   CK_BYTE public_exponent_value[] = {0x00, 0x1, 0x0, 0x1}; // 65537=0x00010001
@@ -152,7 +152,7 @@ TEST_F(RWUserSessionTest, PublicExponent4Bytes) {
   }
 }
 
-TEST_F(RWUserSessionTest, ExtractKeys) {
+TEST_F(ROEitherSessionTest, ExtractKeys) {
   REQUIRE_MECHANISM(CKM_RSA_PKCS_KEY_PAIR_GEN, CKF_GENERATE_KEY_PAIR);
   vector<CK_ATTRIBUTE_TYPE> public_attrs = {CKA_ENCRYPT};
   vector<CK_ATTRIBUTE_TYPE> private_attrs = {CKA_DECRYPT, CKA_SENSITIVE};
@@ -183,7 +183,7 @@ TEST_F(RWUserSessionTest, ExtractKeys) {
 
 }
 
-TEST_F(RWUserSessionTest, AsymmetricTokenKeyPair) {
+TEST_F(RWEitherSessionTest, AsymmetricTokenKeyPair) {
   REQUIRE_MECHANISM(CKM_RSA_PKCS_KEY_PAIR_GEN, CKF_GENERATE_KEY_PAIR);
   // Attempt to create a keypair with the private key on the token but
   // the public key not.

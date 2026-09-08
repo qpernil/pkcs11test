@@ -721,7 +721,7 @@ TEST_F(ReadOnlySessionTest, CreateSecretKeyAttributes) {
   ASSERT_CKR_OK(g_fns->C_DestroyObject(session_, key_object));
 }
 
-TEST_F(RWUserSessionTest, SecretKeyTestVectors) {
+TEST_F(ReadOnlySessionTest, SecretKeyTestVectors) {
   for (const auto& kv : kTestVectors) {
     vector<TestData> testcases = kTestVectors[kv.first];
     CipherInfo info = kCipherInfo[kv.first];

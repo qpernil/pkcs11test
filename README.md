@@ -103,8 +103,11 @@ profiles, key-size intersections, IV initialization, and discovery errors.
 The shared key helpers create session objects by default. Secret keys default
 to public, non-sensitive, and extractable so value comparison and wrapping
 have explicit prerequisites; individual security tests override those policies.
-Private RSA keys are private objects and their fixtures authenticate before
-creation. Explicit token-object attributes are preserved. Attribute storage
+Public session-object fixtures run without login in read-only sessions.
+Private RSA fixtures authenticate when the token requires login; only
+explicit token-object creation requires a read/write session. Dedicated
+authentication and read/write object tests remain separate.
+Explicit token-object attributes are preserved. Attribute storage
 remains alive through generation, and object-search capacities count handles,
 not bytes.
 

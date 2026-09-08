@@ -22,7 +22,7 @@ using namespace std;  // So sue me
 namespace pkcs11 {
 namespace test {
 
-TEST_F(RWUserSessionTest, TookanAttackA1) {
+TEST_F(ReadOnlySessionTest, TookanAttackA1) {
   LOAD_WRAPPING_PROFILES(profiles, CKF_WRAP | CKF_DECRYPT);
   for (const WrappingProfile& profile : profiles) {
     SCOPED_TRACE(profile.name);
@@ -55,7 +55,7 @@ TEST_F(RWUserSessionTest, TookanAttackA1) {
   }
 }
 
-TEST_F(RWUserSessionTest, TookanAttackA2) {
+TEST_F(ROEitherSessionTest, TookanAttackA2) {
   REQUIRE_MECHANISM(CKM_AES_KEY_GEN, CKF_GENERATE);
   REQUIRE_MECHANISM(CKM_RSA_PKCS_KEY_PAIR_GEN, CKF_GENERATE_KEY_PAIR);
   REQUIRE_MECHANISM(CKM_RSA_PKCS, CKF_WRAP | CKF_DECRYPT);
@@ -93,7 +93,7 @@ TEST_F(RWUserSessionTest, TookanAttackA2) {
   }
 }
 
-TEST_F(RWUserSessionTest, TookanAttackA3) {
+TEST_F(ReadOnlySessionTest, TookanAttackA3) {
   REQUIRE_MECHANISM(CKM_AES_KEY_GEN, CKF_GENERATE);
   // Create a sensitive key.
   vector<CK_ATTRIBUTE_TYPE> key_attrs = {CKA_SENSITIVE};
@@ -105,7 +105,7 @@ TEST_F(RWUserSessionTest, TookanAttackA3) {
   EXPECT_CKR(CKR_ATTRIBUTE_SENSITIVE, rv);
 }
 
-TEST_F(RWUserSessionTest, TookanAttackA4) {
+TEST_F(ReadOnlySessionTest, TookanAttackA4) {
   REQUIRE_MECHANISM(CKM_AES_KEY_GEN, CKF_GENERATE);
   // Create a non-extractable key.
   ObjectAttributes key_attrs;
@@ -127,7 +127,7 @@ TEST_F(RWUserSessionTest, TookanAttackA4) {
   EXPECT_EQ(CK_FALSE, extractable);
 }
 
-TEST_F(RWUserSessionTest, TookanAttackA5a) {
+TEST_F(ReadOnlySessionTest, TookanAttackA5a) {
   REQUIRE_MECHANISM(CKM_AES_KEY_GEN, CKF_GENERATE);
   // Create a sensitive key.
   vector<CK_ATTRIBUTE_TYPE> key_attrs = {CKA_SENSITIVE};
@@ -145,7 +145,7 @@ TEST_F(RWUserSessionTest, TookanAttackA5a) {
   EXPECT_EQ(CK_TRUE, (CK_BBOOL)data[0]);
 }
 
-TEST_F(RWUserSessionTest, TookanAttackA5b) {
+TEST_F(ReadOnlySessionTest, TookanAttackA5b) {
   REQUIRE_MECHANISM(CKM_AES_KEY_GEN, CKF_GENERATE);
   // Create a non-extractable key.
   ObjectAttributes key_attrs;

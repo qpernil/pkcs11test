@@ -343,7 +343,7 @@ class KeyPair {
 };
 
 // Test fixture for tests involving a secret key.
-class SecretKeyTest : public RWUserSessionTest,
+class SecretKeyTest : public ReadOnlySessionTest,
                       public ::testing::WithParamInterface<std::string> {
  public:
   static const int kNumBlocks = 4;

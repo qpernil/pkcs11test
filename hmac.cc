@@ -82,7 +82,7 @@ map<string, vector<TestData> > kTestVectors = {
 
 }  // namespace
 
-class HmacTest : public RWUserSessionTest,
+class HmacTest : public ReadOnlySessionTest,
                  public ::testing::WithParamInterface<string> {
  public:
   HmacTest()
@@ -127,6 +127,8 @@ class HmacTest : public RWUserSessionTest,
     CK_KEY_TYPE type = CKK_GENERIC_SECRET;
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
     vector<CK_ATTRIBUTE> attrs = {
+      {CKA_TOKEN, &g_ck_false, sizeof(g_ck_false)},
+      {CKA_PRIVATE, &g_ck_false, sizeof(g_ck_false)},
       {CKA_LABEL, (CK_VOID_PTR)g_label, g_label_len},
       {CKA_SIGN, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
       {CKA_VERIFY, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
@@ -143,6 +145,8 @@ class HmacTest : public RWUserSessionTest,
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
     CK_MECHANISM mech = {generation, NULL_PTR, 0};
     vector<CK_ATTRIBUTE> attrs = {
+      {CKA_TOKEN, &g_ck_false, sizeof(g_ck_false)},
+      {CKA_PRIVATE, &g_ck_false, sizeof(g_ck_false)},
       {CKA_LABEL, (CK_VOID_PTR)g_label, g_label_len},
       {CKA_SIGN, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
       {CKA_VERIFY, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
@@ -288,7 +292,7 @@ static vector<HmacInput> HmacInputs() {
   return result;
 }
 
-class HmacInputTest : public RWUserSessionTest,
+class HmacInputTest : public ReadOnlySessionTest,
                       public ::testing::WithParamInterface<HmacInput> {
  protected:
   CK_OBJECT_HANDLE key_ = CK_INVALID_HANDLE;

@@ -224,7 +224,7 @@ TEST_F(ReadWriteSessionTest, CreateCopyDestroyObject) {
   EXPECT_EQ(expected_objects, test_objects);
 }
 
-TEST_F(RWUserSessionTest, CreateObjectInvalid) {
+TEST_F(ReadOnlySessionTest, CreateObjectInvalid) {
   CK_OBJECT_CLASS data_class = CKO_DATA;
   CK_UTF8CHAR app[] = "pkcs11test";
   CK_ATTRIBUTE attrs[] = {
@@ -251,7 +251,7 @@ TEST_F(RWUserSessionTest, CreateObjectInvalid) {
              g_fns->C_CreateObject(session_, attr_value, 1, &object));
 }
 
-TEST_F(RWUserSessionTest, SetLatchingAttribute) {
+TEST_F(ReadOnlySessionTest, SetLatchingAttribute) {
   REQUIRE_MECHANISM(CKM_AES_KEY_GEN, CKF_GENERATE);
   // Start with an non-sensitive key object.
   ObjectAttributes attrs;
@@ -279,7 +279,7 @@ TEST_F(RWUserSessionTest, SetLatchingAttribute) {
   EXPECT_EQ(CK_TRUE, bvalue);
 }
 
-class DataObjectTest : public RWUserSessionTest {
+class DataObjectTest : public ReadOnlySessionTest {
  public:
   DataObjectTest() : object_(CK_INVALID_HANDLE) {
     CK_OBJECT_CLASS data_class = CKO_DATA;
@@ -421,7 +421,7 @@ TEST_F(DataObjectTest, FindObject) {
   EXPECT_CKR_OK(g_fns->C_FindObjectsFinal(session_));
 }
 
-TEST_F(RWUserSessionTest, FindObjectSubset) {
+TEST_F(ROEitherSessionTest, FindObjectSubset) {
   REQUIRE_MECHANISM(CKM_GENERIC_SECRET_KEY_GEN, CKF_GENERATE);
   REQUIRE_MECHANISM(CKM_AES_KEY_GEN, CKF_GENERATE);
   REQUIRE_MECHANISM(CKM_RSA_PKCS_KEY_PAIR_GEN, CKF_GENERATE_KEY_PAIR);
