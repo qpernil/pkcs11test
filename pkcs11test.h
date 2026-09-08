@@ -323,9 +323,9 @@ class KeyPair {
                                            &public_key_, &private_key_));
   }
   ~KeyPair() {
-    /*if (public_key_ != INVALID_OBJECT_HANDLE) {
+    if (public_key_ != INVALID_OBJECT_HANDLE) {
       EXPECT_CKR_OK(g_fns->C_DestroyObject(session_, public_key_));
-      }*/
+    }
     if (private_key_ != INVALID_OBJECT_HANDLE) {
       EXPECT_CKR_OK(g_fns->C_DestroyObject(session_, private_key_));
     }
