@@ -17,6 +17,8 @@ GTEST_INC=-isystem $(GTEST_DIR)/include
 CXXFLAGS+=-Ithird_party/pkcs11  $(GTEST_INC) -g -std=c++0x -Wall
 OBJECTS=pkcs11test.o pkcs11-describe.o describe.o globals.o init.o slot.o session.o object.o login.o rng.o tookan.o keypair.o cipher.o digest.o sign.o hmac.o key.o dual.o
 
+$(OBJECTS): pkcs11test.h pkcs11-describe.h third_party/pkcs11/pkcs11.h third_party/pkcs11/pkcs11t.h third_party/pkcs11/pkcs11f.h
+
 pkcs11test: $(OBJECTS) libgtest.a
 	$(CXX) -g $(GTEST_INCS) -o $@ $(OBJECTS) -ldl libgtest.a -lpthread
 

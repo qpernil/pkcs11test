@@ -42,6 +42,9 @@ class DualSecretKeyTest : public SecretKeyTest {
 }  // namespace
 
 TEST_P(DualSecretKeyTest, DigestEncrypt) {
+  REQUIRE_MECHANISM(info_.keygen, CKF_GENERATE);
+  REQUIRE_MECHANISM(info_.mode, CKF_ENCRYPT | CKF_DECRYPT);
+  REQUIRE_MECHANISM(digest_info_.type, CKF_DIGEST);
   // Start digest and encryption operations
   ASSERT_CKR_OK(g_fns->C_DigestInit(session_, &digest_mechanism_));
   ASSERT_CKR_OK(g_fns->C_EncryptInit(session_, &mechanism_, key_.handle()));

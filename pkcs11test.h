@@ -82,6 +82,22 @@ inline std::ostream& operator<<(std::ostream& os, const CK_RV_& wrv) {
 #define ASSERT_CKR(expected, actual) ASSERT_EQ(CK_RV_(expected), CK_RV_(actual))
 #define ASSERT_CKR_OK(val) ASSERT_CKR(CKR_OK, (val))
 
+// Missing advertised capabilities are skips; unexpected discovery errors fail.
+#define REQUIRE_MECHANISM(mechanism, required_flags) \
+  do { \
+    CK_MECHANISM_INFO required_info; \
+    CK_RV required_rv = g_fns->C_GetMechanismInfo(g_slot_id, (mechanism), &required_info); \
+    if (required_rv == CKR_MECHANISM_INVALID) { \
+      TEST_SKIPPED(std::string("Mechanism unavailable: ") + mechanism_type_name(mechanism)); \
+      return; \
+    } \
+    ASSERT_CKR_OK(required_rv); \
+    if ((required_info.flags & (required_flags)) != (required_flags)) { \
+      TEST_SKIPPED(std::string("Required capability unavailable: ") + mechanism_type_name(mechanism)); \
+      return; \
+    } \
+  } while (0)
+
 bool IsSpacePadded(const CK_UTF8CHAR *field, int len);
 #define IS_SPACE_PADDED(field) IsSpacePadded(field, sizeof(field))
 int GetInteger(const CK_CHAR *val, int len);
@@ -236,6 +252,14 @@ inline std::ostream& operator<<(std::ostream& os, const ObjectAttributes& attrob
   return os;
 }
 
+inline void DefaultAttribute(ObjectAttributes& attrs, CK_ATTRIBUTE_TYPE type,
+                             CK_BBOOL* value) {
+  for (unsigned i = 0; i < attrs.size(); ++i) {
+    if (attrs.data()[i].type == type) return;
+  }
+  attrs.push_back({type, value, sizeof(*value)});
+}
+
 class SecretKey {
  public:
   // Create a secret key with the given list of (boolean) attributes set to true.
@@ -243,8 +267,12 @@ class SecretKey {
             CK_MECHANISM_TYPE keygen_mechanism = CKM_DES_KEY_GEN,
             int keylen = -1)
     : session_(session), attrs_(attrs), key_(INVALID_OBJECT_HANDLE) {
+    DefaultAttribute(attrs_, CKA_TOKEN, &g_ck_false);
+    DefaultAttribute(attrs_, CKA_PRIVATE, &g_ck_false);
+    DefaultAttribute(attrs_, CKA_EXTRACTABLE, &g_ck_true);
+    DefaultAttribute(attrs_, CKA_SENSITIVE, &g_ck_false);
+    CK_ULONG len = keylen;
     if (keylen > 0) {
-      CK_ULONG len = keylen;
       CK_ATTRIBUTE valuelen = {CKA_VALUE_LEN, &len, sizeof(CK_ULONG)};
       attrs_.push_back(valuelen);
     }
@@ -278,6 +306,9 @@ class KeyPair {
     : session_(session),
       public_attrs_(public_attrs), private_attrs_(private_attrs),
       public_key_(INVALID_OBJECT_HANDLE), private_key_(INVALID_OBJECT_HANDLE) {
+    DefaultAttribute(public_attrs_, CKA_TOKEN, &g_ck_false);
+    DefaultAttribute(private_attrs_, CKA_TOKEN, &g_ck_false);
+    DefaultAttribute(private_attrs_, CKA_PRIVATE, &g_ck_true);
     CK_ULONG modulus_bits = 2048;
     CK_ATTRIBUTE modulus = {CKA_MODULUS_BITS, &modulus_bits, sizeof(modulus_bits)};
     public_attrs_.push_back(modulus);

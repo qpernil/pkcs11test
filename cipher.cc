@@ -276,11 +276,15 @@ TEST_P(SecretKeyTest, EncryptDecryptInitInvalid) {
   EXPECT_CKR(CKR_KEY_HANDLE_INVALID,
              g_fns->C_DecryptInit(session_, &mechanism_, INVALID_OBJECT_HANDLE));
 
-  CK_RV rv;
-  rv = g_fns->C_EncryptInit(session_, NULL_PTR, key_.handle());
-  EXPECT_TRUE(rv == CKR_ARGUMENTS_BAD  || rv == CKR_MECHANISM_INVALID) << " rv=" << CK_RV_(rv);
-  rv = g_fns->C_DecryptInit(session_, NULL_PTR, key_.handle());
-  EXPECT_TRUE(rv == CKR_ARGUMENTS_BAD  || rv == CKR_MECHANISM_INVALID) << " rv=" << CK_RV_(rv);
+  CK_INFO library_info;
+  ASSERT_CKR_OK(g_fns->C_GetInfo(&library_info));
+  if (library_info.cryptokiVersion.major < 3) {
+    // Version 3 defines NULL mechanisms as operation cancellation instead.
+    CK_RV rv = g_fns->C_EncryptInit(session_, NULL_PTR, key_.handle());
+    EXPECT_TRUE(rv == CKR_ARGUMENTS_BAD || rv == CKR_MECHANISM_INVALID) << CK_RV_(rv);
+    rv = g_fns->C_DecryptInit(session_, NULL_PTR, key_.handle());
+    EXPECT_TRUE(rv == CKR_ARGUMENTS_BAD || rv == CKR_MECHANISM_INVALID) << CK_RV_(rv);
+  }
 
   // Can't perform RSA with a symmetric key.
   CK_MECHANISM rsa_mechanism = {CKM_RSA_PKCS, NULL_PTR, 0};
@@ -428,20 +432,65 @@ TEST_P(SecretKeyTest, EncryptModePolicing1) {
                               ciphertext, &ciphertext_len));
 }
 
-TEST_P(SecretKeyTest, EncryptModePolicing2) {
+TEST_P(SecretKeyTest, EncryptUpdateAfterSizeQuery) {
   SKIP_IF_UNIMPLEMENTED(info_);
+  CK_ULONG required = 0;
+  ASSERT_CKR_OK(g_fns->C_EncryptInit(session_, &mechanism_, key_.handle()));
+  ASSERT_CKR_OK(g_fns->C_Encrypt(session_, plaintext_.get(),
+                               kNumBlocks * info_.blocksize, NULL_PTR, &required));
+  // A size query must not consume input or commit to single-part processing.
   CK_BYTE ciphertext[1024];
-  CK_ULONG ciphertext_len = 0;
-  EXPECT_CKR_OK(g_fns->C_EncryptInit(session_, &mechanism_, key_.handle()));
-  EXPECT_CKR_OK(g_fns->C_Encrypt(session_,
-                                 plaintext_.get(), kNumBlocks * info_.blocksize,
-                                 NULL_PTR, &ciphertext_len));
-  // Having started a one-shot operation (but not yet retrieved its results),
-  // an incremental operation fails.
-  EXPECT_CKR(CKR_OPERATION_ACTIVE,
-             g_fns->C_EncryptUpdate(session_,
-                                    plaintext_.get(), kNumBlocks * info_.blocksize,
-                                    ciphertext, &ciphertext_len));
+  CK_ULONG ciphertext_len = sizeof(ciphertext);
+  ASSERT_CKR_OK(g_fns->C_EncryptUpdate(session_, plaintext_.get(),
+                                     kNumBlocks * info_.blocksize,
+                                     ciphertext, &ciphertext_len));
+  ASSERT_LE(ciphertext_len, sizeof(ciphertext));
+  CK_ULONG final_len = sizeof(ciphertext) - ciphertext_len;
+  ASSERT_CKR_OK(g_fns->C_EncryptFinal(session_, ciphertext + ciphertext_len, &final_len));
+  ciphertext_len += final_len;
+  EXPECT_LE(ciphertext_len, required);
+
+  CK_BYTE recovered[1024];
+  CK_ULONG recovered_len = sizeof(recovered);
+  ASSERT_CKR_OK(g_fns->C_DecryptInit(session_, &mechanism_, key_.handle()));
+  ASSERT_CKR_OK(g_fns->C_Decrypt(session_, ciphertext, ciphertext_len,
+                               recovered, &recovered_len));
+  ASSERT_EQ(kNumBlocks * info_.blocksize, recovered_len);
+  EXPECT_EQ(0, memcmp(plaintext_.get(), recovered, recovered_len));
+}
+
+TEST_P(SecretKeyTest, CancelActiveEncryptionAndDecryption) {
+  SKIP_IF_UNIMPLEMENTED(info_);
+  CK_INFO library_info;
+  ASSERT_CKR_OK(g_fns->C_GetInfo(&library_info));
+  if (library_info.cryptokiVersion.major < 3) {
+    TEST_SKIPPED("NULL-mechanism cancellation requires PKCS #11 3.0");
+    return;
+  }
+  const CK_RV operation_cancel_failed = 0x00000202UL;
+  CK_BYTE output[1024];
+  CK_ULONG output_len = sizeof(output);
+  ASSERT_CKR_OK(g_fns->C_EncryptInit(session_, &mechanism_, key_.handle()));
+  CK_RV rv = g_fns->C_EncryptInit(session_, NULL_PTR, key_.handle());
+  if (rv == operation_cancel_failed) {
+    TEST_SKIPPED("Encryption cancellation unsupported");
+    return;
+  }
+  ASSERT_CKR_OK(rv);
+  EXPECT_CKR(CKR_OPERATION_NOT_INITIALIZED,
+             g_fns->C_Encrypt(session_, plaintext_.get(), kNumBlocks * info_.blocksize,
+                              output, &output_len));
+  ASSERT_CKR_OK(g_fns->C_DecryptInit(session_, &mechanism_, key_.handle()));
+  rv = g_fns->C_DecryptInit(session_, NULL_PTR, key_.handle());
+  if (rv == operation_cancel_failed) {
+    TEST_SKIPPED("Decryption cancellation unsupported");
+    return;
+  }
+  ASSERT_CKR_OK(rv);
+  output_len = sizeof(output);
+  EXPECT_CKR(CKR_OPERATION_NOT_INITIALIZED,
+             g_fns->C_Decrypt(session_, plaintext_.get(), kNumBlocks * info_.blocksize,
+                              output, &output_len));
 }
 
 TEST_P(SecretKeyTest, EncryptInvalidIV) {
@@ -628,9 +677,9 @@ INSTANTIATE_TEST_CASE_P(Ciphers, SecretKeyTest,
                                           "AES-CBC"));
 
 TEST_F(ReadOnlySessionTest, CreateSecretKeyAttributes) {
-  string key = hex_decode("");
+  string key = hex_decode("000102030405060708090a0b0c0d0e0f");
   CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
-  CK_KEY_TYPE key_type = CKK_DES;
+  CK_KEY_TYPE key_type = CKK_AES;
   vector<CK_ATTRIBUTE> attrs = {
     {CKA_LABEL, (CK_VOID_PTR)g_label, g_label_len},
     {CKA_ENCRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},

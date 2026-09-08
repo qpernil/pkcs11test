@@ -32,17 +32,6 @@ namespace test {
 
 namespace {
 
-class KeyPairTest : public ReadWriteSessionTest {
- public:
-  KeyPairTest()
-    : public_attrs_({CKA_ENCRYPT, CKA_TOKEN}),
-      private_attrs_({CKA_DECRYPT, CKA_TOKEN}),
-      keypair_(session_, public_attrs_, private_attrs_) {}
- protected:
-  vector<CK_ATTRIBUTE_TYPE> public_attrs_;
-  vector<CK_ATTRIBUTE_TYPE> private_attrs_;
-  KeyPair keypair_;
-};
 
 struct RSAKeyData {
   string public_modulus;  // hex
@@ -97,7 +86,12 @@ RSAKeyData kRsaKey1 = {
 
 }  // namespace
 
-TEST_F(KeyPairTest, EncryptDecrypt) {
+TEST_F(RWUserSessionTest, EncryptDecrypt) {
+  REQUIRE_MECHANISM(CKM_RSA_PKCS_KEY_PAIR_GEN, CKF_GENERATE_KEY_PAIR);
+  REQUIRE_MECHANISM(CKM_RSA_PKCS, CKF_ENCRYPT | CKF_DECRYPT);
+  vector<CK_ATTRIBUTE_TYPE> public_attrs = {CKA_ENCRYPT};
+  vector<CK_ATTRIBUTE_TYPE> private_attrs = {CKA_DECRYPT};
+  KeyPair keypair_(session_, public_attrs, private_attrs);
   CK_BYTE plaintext[10];
   CK_ULONG plaintext_len = sizeof(plaintext);
   memcpy(plaintext, "0123456789", plaintext_len);
@@ -110,7 +104,10 @@ TEST_F(KeyPairTest, EncryptDecrypt) {
   CK_ULONG ciphertext_len = sizeof(ciphertext);
   rv = g_fns->C_Encrypt(session_, plaintext, plaintext_len, ciphertext, &ciphertext_len);
   ASSERT_CKR_OK(rv);
-  EXPECT_EQ(128, ciphertext_len);
+  CK_ULONG modulus_bits = 0;
+  CK_ATTRIBUTE modulus_attr = {CKA_MODULUS_BITS, &modulus_bits, sizeof(modulus_bits)};
+  ASSERT_CKR_OK(g_fns->C_GetAttributeValue(session_, keypair_.public_handle(), &modulus_attr, 1));
+  EXPECT_EQ((modulus_bits + 7) / 8, ciphertext_len);
 
   // Now decrypt the data with the private key.
   rv = g_fns->C_DecryptInit(session_, &mechanism, keypair_.private_handle());
@@ -124,16 +121,17 @@ TEST_F(KeyPairTest, EncryptDecrypt) {
   EXPECT_EQ(0, memcmp(plaintext, recovered_plaintext, plaintext_len));
 }
 
-TEST_F(ReadWriteSessionTest, PublicExponent4Bytes) {
+TEST_F(RWUserSessionTest, PublicExponent4Bytes) {
+  REQUIRE_MECHANISM(CKM_RSA_PKCS_KEY_PAIR_GEN, CKF_GENERATE_KEY_PAIR);
   CK_ULONG modulus_bits = 1024;
   CK_BYTE public_exponent_value[] = {0x00, 0x1, 0x0, 0x1}; // 65537=0x00010001
   vector<CK_ATTRIBUTE> public_attrs = {
-    {CKA_ENCRYPT},
+    {CKA_ENCRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
     {CKA_MODULUS_BITS, &modulus_bits, sizeof(modulus_bits)},
     {CKA_PUBLIC_EXPONENT, public_exponent_value, sizeof(public_exponent_value)},
   };
   vector<CK_ATTRIBUTE> private_attrs = {
-    {CKA_DECRYPT},
+    {CKA_DECRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
   };
   CK_MECHANISM mechanism = {CKM_RSA_PKCS_KEY_PAIR_GEN, NULL_PTR, 0};
   CK_OBJECT_HANDLE public_key = INVALID_OBJECT_HANDLE;
@@ -152,7 +150,8 @@ TEST_F(ReadWriteSessionTest, PublicExponent4Bytes) {
   }
 }
 
-TEST_F(ReadWriteSessionTest, ExtractKeys) {
+TEST_F(RWUserSessionTest, ExtractKeys) {
+  REQUIRE_MECHANISM(CKM_RSA_PKCS_KEY_PAIR_GEN, CKF_GENERATE_KEY_PAIR);
   vector<CK_ATTRIBUTE_TYPE> public_attrs = {CKA_ENCRYPT};
   vector<CK_ATTRIBUTE_TYPE> private_attrs = {CKA_DECRYPT, CKA_SENSITIVE};
   KeyPair keypair(session_, public_attrs, private_attrs);
@@ -182,7 +181,8 @@ TEST_F(ReadWriteSessionTest, ExtractKeys) {
 
 }
 
-TEST_F(ReadWriteSessionTest, AsymmetricTokenKeyPair) {
+TEST_F(RWUserSessionTest, AsymmetricTokenKeyPair) {
+  REQUIRE_MECHANISM(CKM_RSA_PKCS_KEY_PAIR_GEN, CKF_GENERATE_KEY_PAIR);
   // Attempt to create a keypair with the private key on the token but
   // the public key not.
   CK_ULONG modulus_bits = 1024;

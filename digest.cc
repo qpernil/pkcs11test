@@ -167,17 +167,18 @@ TEST_P(DigestTest, CompareIncremental) {
 }
 
 TEST_P(DigestTest, DigestKey) {
+  REQUIRE_MECHANISM(CKM_AES_KEY_GEN, CKF_GENERATE);
   CK_RV rv = g_fns->C_DigestInit(session_, &mechanism_);
   SKIP_IF_UNIMPLEMENTED_RV(rv);
   EXPECT_CKR_OK(rv);
 
   vector<CK_ATTRIBUTE_TYPE> attrs = {CKA_ENCRYPT, CKA_DECRYPT};
-  SecretKey key(session_, attrs, CKM_DES_KEY_GEN);
+  SecretKey key(session_, attrs, CKM_AES_KEY_GEN, 16);
 
   rv = g_fns->C_DigestKey(session_, key.handle());
   if (rv == CKR_KEY_INDIGESTIBLE) {
     stringstream ss;
-    ss << mechanism_type_name(mechanism_.mechanism) << " cannot digest DES key";
+    ss << mechanism_type_name(mechanism_.mechanism) << " cannot digest AES key";
     TEST_SKIPPED(ss.str());
     return;
   }
@@ -189,17 +190,18 @@ TEST_P(DigestTest, DigestKey) {
 }
 
 TEST_P(DigestTest, DigestKeyInvalid) {
+  REQUIRE_MECHANISM(CKM_AES_KEY_GEN, CKF_GENERATE);
   CK_RV rv = g_fns->C_DigestInit(session_, &mechanism_);
   SKIP_IF_UNIMPLEMENTED_RV(rv);
   EXPECT_CKR_OK(rv);
 
   vector<CK_ATTRIBUTE_TYPE> attrs = {CKA_ENCRYPT, CKA_DECRYPT};
-  SecretKey key(session_, attrs, CKM_DES_KEY_GEN);
+  SecretKey key(session_, attrs, CKM_AES_KEY_GEN, 16);
 
   rv = g_fns->C_DigestKey(session_, key.handle());
   if (rv == CKR_KEY_INDIGESTIBLE) {
     stringstream ss;
-    ss << mechanism_type_name(mechanism_.mechanism) << " cannot digest DES key";
+    ss << mechanism_type_name(mechanism_.mechanism) << " cannot digest AES key";
     TEST_SKIPPED(ss.str());
     return;
   }
@@ -321,26 +323,25 @@ TEST_P(DigestTest, DigestIntersperse) {
              g_fns->C_DigestFinal(session_, buffer, &digest_len));
 }
 
-TEST_P(DigestTest, DigestFinalIntersperse) {
+TEST_P(DigestTest, DigestFinalAfterSizeQuery) {
   CK_RV rv = g_fns->C_DigestInit(session_, &mechanism_);
   SKIP_IF_UNIMPLEMENTED_RV(rv);
-  EXPECT_CKR_OK(rv);
+  ASSERT_CKR_OK(rv);
+  CK_ULONG required = 0;
+  ASSERT_CKR_OK(g_fns->C_Digest(session_, data_.get(), datalen_, NULL_PTR, &required));
 
-  // Digest and retrieve required length as a one-shot operation.
-  CK_ULONG digest_len = 0;
-  EXPECT_CKR_OK(g_fns->C_Digest(session_, data_.get(), datalen_, NULL_PTR, &digest_len));
-  EXPECT_EQ(info_.size, digest_len);
-
-  // Attempt to finish with DigestFinal; not allowed.
-  CK_BYTE buffer[512];
-  digest_len = sizeof(buffer);
-  EXPECT_CKR(CKR_OPERATION_ACTIVE,
-             g_fns->C_DigestFinal(session_, buffer, &digest_len));
-
-  // A failed DigestFinal should always terminate the active digest operation.
-  digest_len = sizeof(buffer);
+  // The query must not consume data: Final still digests the empty message.
+  CK_BYTE actual[512], expected[512];
+  CK_ULONG actual_len = sizeof(actual), expected_len = sizeof(expected);
+  ASSERT_CKR_OK(g_fns->C_DigestFinal(session_, actual, &actual_len));
+  EXPECT_LE(actual_len, required);
   EXPECT_CKR(CKR_OPERATION_NOT_INITIALIZED,
-             g_fns->C_Digest(session_, data_.get(), datalen_, buffer, &digest_len));
+             g_fns->C_Digest(session_, data_.get(), datalen_, expected, &expected_len));
+  ASSERT_CKR_OK(g_fns->C_DigestInit(session_, &mechanism_));
+  expected_len = sizeof(expected);
+  ASSERT_CKR_OK(g_fns->C_Digest(session_, data_.get(), 0, expected, &expected_len));
+  ASSERT_EQ(expected_len, actual_len);
+  EXPECT_EQ(0, memcmp(expected, actual, actual_len));
 }
 
 TEST_P(DigestTest, DigestNoInit) {

@@ -131,6 +131,7 @@ class HmacTest : public RWUserSessionTest,
   }
 
   void Generate() {
+    CK_ULONG key_length = keylen_;
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
     CK_MECHANISM mech = {CKM_GENERIC_SECRET_KEY_GEN, NULL_PTR, 0};
     vector<CK_ATTRIBUTE> attrs = {
@@ -139,6 +140,7 @@ class HmacTest : public RWUserSessionTest,
       {CKA_VERIFY, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
       {CKA_CLASS, &key_class, sizeof(key_class)},
       {CKA_KEY_TYPE, (CK_VOID_PTR)&key_type_, sizeof(key_type_)},
+      {CKA_VALUE_LEN, &key_length, sizeof(key_length)},
     };
     EXPECT_CKR_OK(g_fns->C_GenerateKey(session_, &mech, attrs.data(), attrs.size(), &key_));
   }

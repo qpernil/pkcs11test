@@ -250,10 +250,11 @@ TEST_F(RWUserSessionTest, CreateObjectInvalid) {
              g_fns->C_CreateObject(session_, attr_value, 1, &object));
 }
 
-TEST_F(ReadWriteSessionTest, SetLatchingAttribute) {
+TEST_F(RWUserSessionTest, SetLatchingAttribute) {
+  REQUIRE_MECHANISM(CKM_AES_KEY_GEN, CKF_GENERATE);
   // Start with an non-sensitive key object.
   ObjectAttributes attrs;
-  SecretKey key(session_, attrs);
+  SecretKey key(session_, attrs, CKM_AES_KEY_GEN, 16);
   CK_BBOOL bvalue;
   CK_ATTRIBUTE attr = {CKA_SENSITIVE, &bvalue, sizeof(bvalue)};
 
@@ -410,19 +411,23 @@ TEST_F(DataObjectTest, FindObject) {
   EXPECT_CKR_OK(g_fns->C_FindObjectsInit(session_, attrs, 3));
   CK_OBJECT_HANDLE object[5];
   CK_ULONG count;
-  EXPECT_CKR_OK(g_fns->C_FindObjects(session_, object, sizeof(object), &count));
+  EXPECT_CKR_OK(g_fns->C_FindObjects(session_, object, sizeof(object) / sizeof(object[0]), &count));
   EXPECT_EQ(1, count);
   EXPECT_EQ(object_, object[0]);
-  EXPECT_CKR_OK(g_fns->C_FindObjects(session_, object, sizeof(object), &count));
+  EXPECT_CKR_OK(g_fns->C_FindObjects(session_, object, sizeof(object) / sizeof(object[0]), &count));
   EXPECT_EQ(0, count);
   EXPECT_CKR_OK(g_fns->C_FindObjectsFinal(session_));
 }
 
-TEST_F(ReadWriteSessionTest, FindObjectSubset) {
+TEST_F(RWUserSessionTest, FindObjectSubset) {
+  REQUIRE_MECHANISM(CKM_GENERIC_SECRET_KEY_GEN, CKF_GENERATE);
+  REQUIRE_MECHANISM(CKM_AES_KEY_GEN, CKF_GENERATE);
+  REQUIRE_MECHANISM(CKM_RSA_PKCS_KEY_PAIR_GEN, CKF_GENERATE_KEY_PAIR);
   // Create a selection of objects.
   vector<CK_ATTRIBUTE_TYPE> attrs = {CKA_ENCRYPT, CKA_DECRYPT};
-  SecretKey des_key1(session_, attrs, CKM_DES_KEY_GEN, -1);
-  SecretKey des_key2(session_, attrs, CKM_DES_KEY_GEN, -1);
+  ObjectAttributes generic_attrs;
+  SecretKey generic_key1(session_, generic_attrs, CKM_GENERIC_SECRET_KEY_GEN, 16);
+  SecretKey generic_key2(session_, generic_attrs, CKM_GENERIC_SECRET_KEY_GEN, 16);
   SecretKey aes_key3(session_, attrs, CKM_AES_KEY_GEN, 16);
   vector<CK_ATTRIBUTE_TYPE> public_attrs = {CKA_ENCRYPT};
   vector<CK_ATTRIBUTE_TYPE> private_attrs = {CKA_DECRYPT};
@@ -433,18 +438,18 @@ TEST_F(ReadWriteSessionTest, FindObjectSubset) {
     {CKA_LABEL, (CK_VOID_PTR)g_label, g_label_len},
   };
   ObjectSet all_objects = GetObjects(session_, 10, label_attrs, 1);
-  EXPECT_EQ(ObjectSet({des_key1.handle(), des_key2.handle(), aes_key3.handle(),
+  EXPECT_EQ(ObjectSet({generic_key1.handle(), generic_key2.handle(), aes_key3.handle(),
                        keypair1.public_handle(), keypair1.private_handle(),
                        keypair2.public_handle(), keypair2.private_handle()}),
             all_objects);
 
-  CK_KEY_TYPE des_type = CKK_DES;
-  CK_ATTRIBUTE des_key_attrs[] = {
+  CK_KEY_TYPE generic_type = CKK_GENERIC_SECRET;
+  CK_ATTRIBUTE generic_key_attrs[] = {
     {CKA_LABEL, (CK_VOID_PTR)g_label, g_label_len},
-    {CKA_KEY_TYPE, &des_type, sizeof(des_type)},
+    {CKA_KEY_TYPE, &generic_type, sizeof(generic_type)},
   };
-  ObjectSet des_keys = GetObjects(session_, 1, des_key_attrs, 2);
-  EXPECT_EQ(ObjectSet({des_key1.handle(), des_key2.handle()}), des_keys);
+  ObjectSet generic_keys = GetObjects(session_, 1, generic_key_attrs, 2);
+  EXPECT_EQ(ObjectSet({generic_key1.handle(), generic_key2.handle()}), generic_keys);
 
   CK_KEY_TYPE aes_type = CKK_AES;
   CK_ATTRIBUTE aes_key_attrs[] = {
@@ -484,7 +489,7 @@ TEST_F(DataObjectTest, FindNoObject) {
   EXPECT_CKR_OK(g_fns->C_FindObjectsInit(session_, attrs, 3));
   CK_OBJECT_HANDLE object[5];
   CK_ULONG count;
-  EXPECT_CKR_OK(g_fns->C_FindObjects(session_, object, sizeof(object), &count));
+  EXPECT_CKR_OK(g_fns->C_FindObjects(session_, object, sizeof(object) / sizeof(object[0]), &count));
   EXPECT_EQ(0, count);
   EXPECT_CKR_OK(g_fns->C_FindObjectsFinal(session_));
 }
@@ -503,7 +508,7 @@ TEST_F(DataObjectTest, FindObjectInvalid) {
   CK_OBJECT_HANDLE object[5];
   CK_ULONG count;
   EXPECT_CKR(CKR_OPERATION_NOT_INITIALIZED,
-             g_fns->C_FindObjects(session_, object, sizeof(object), &count));
+             g_fns->C_FindObjects(session_, object, sizeof(object) / sizeof(object[0]), &count));
 
   EXPECT_CKR(CKR_SESSION_HANDLE_INVALID,
              g_fns->C_FindObjectsInit(INVALID_SESSION_HANDLE, attrs, 3));
@@ -514,11 +519,11 @@ TEST_F(DataObjectTest, FindObjectInvalid) {
   EXPECT_CKR_OK(g_fns->C_FindObjectsInit(session_, attrs, 3));
 
   EXPECT_CKR(CKR_SESSION_HANDLE_INVALID,
-             g_fns->C_FindObjects(INVALID_SESSION_HANDLE, object, sizeof(object), &count));
+             g_fns->C_FindObjects(INVALID_SESSION_HANDLE, object, sizeof(object) / sizeof(object[0]), &count));
   EXPECT_CKR(CKR_ARGUMENTS_BAD,
              g_fns->C_FindObjects(session_, NULL_PTR, 1, &count));
   EXPECT_CKR(CKR_ARGUMENTS_BAD,
-             g_fns->C_FindObjects(session_, object, sizeof(object), NULL_PTR));
+             g_fns->C_FindObjects(session_, object, sizeof(object) / sizeof(object[0]), NULL_PTR));
 
   EXPECT_CKR(CKR_SESSION_HANDLE_INVALID,
              g_fns->C_FindObjectsFinal(INVALID_SESSION_HANDLE));
@@ -526,7 +531,7 @@ TEST_F(DataObjectTest, FindObjectInvalid) {
 
   // Find after finalization
   EXPECT_CKR(CKR_OPERATION_NOT_INITIALIZED,
-             g_fns->C_FindObjects(session_, object, sizeof(object), &count));
+             g_fns->C_FindObjects(session_, object, sizeof(object) / sizeof(object[0]), &count));
 }
 
 }  // namespace test

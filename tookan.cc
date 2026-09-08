@@ -21,9 +21,13 @@ using namespace std;  // So sue me
 namespace pkcs11 {
 namespace test {
 
-TEST_F(ReadWriteSessionTest, TookanAttackA1) {
+TEST_F(RWUserSessionTest, TookanAttackA1) {
+  REQUIRE_MECHANISM(CKM_DES_KEY_GEN, CKF_GENERATE);
+  REQUIRE_MECHANISM(CKM_DES_ECB, CKF_WRAP | CKF_DECRYPT);
   // First, create a sensitive key k1.
-  vector<CK_ATTRIBUTE_TYPE> k1_attrs = {CKA_SENSITIVE};
+  ObjectAttributes k1_attrs;
+  k1_attrs.push_back({CKA_SENSITIVE, &g_ck_true, sizeof(g_ck_true)});
+  k1_attrs.push_back({CKA_EXTRACTABLE, &g_ck_false, sizeof(g_ck_false)});
   SecretKey k1(session_, k1_attrs);
 
   // Second, create a key k2 with wrap & decrypt
@@ -54,10 +58,15 @@ TEST_F(ReadWriteSessionTest, TookanAttackA1) {
   }
 }
 
-TEST_F(RWEitherSessionTest, TookanAttackA2) {
-    // First, create a sensitive key k1.
-  vector<CK_ATTRIBUTE_TYPE> k1_attrs = {CKA_SENSITIVE};
-  SecretKey k1(session_, k1_attrs);
+TEST_F(RWUserSessionTest, TookanAttackA2) {
+  REQUIRE_MECHANISM(CKM_AES_KEY_GEN, CKF_GENERATE);
+  REQUIRE_MECHANISM(CKM_RSA_PKCS_KEY_PAIR_GEN, CKF_GENERATE_KEY_PAIR);
+  REQUIRE_MECHANISM(CKM_RSA_PKCS, CKF_WRAP | CKF_DECRYPT);
+  // First, create a sensitive key k1.
+  ObjectAttributes k1_attrs;
+  k1_attrs.push_back({CKA_SENSITIVE, &g_ck_true, sizeof(g_ck_true)});
+  k1_attrs.push_back({CKA_EXTRACTABLE, &g_ck_false, sizeof(g_ck_false)});
+  SecretKey k1(session_, k1_attrs, CKM_AES_KEY_GEN, 16);
 
   // Second, create a keypair k2 with wrap (public) & decrypt (private)
   vector<CK_ATTRIBUTE_TYPE> k2_public_attrs = {CKA_WRAP};
@@ -87,10 +96,11 @@ TEST_F(RWEitherSessionTest, TookanAttackA2) {
   }
 }
 
-TEST_F(ReadWriteSessionTest, TookanAttackA3) {
+TEST_F(RWUserSessionTest, TookanAttackA3) {
+  REQUIRE_MECHANISM(CKM_AES_KEY_GEN, CKF_GENERATE);
   // Create a sensitive key.
   vector<CK_ATTRIBUTE_TYPE> key_attrs = {CKA_SENSITIVE};
-  SecretKey key(session_, key_attrs);
+  SecretKey key(session_, key_attrs, CKM_AES_KEY_GEN, 16);
   // Retrieve its value
   CK_BYTE data[4096];
   CK_ATTRIBUTE attr = {CKA_VALUE, data, sizeof(data)};
@@ -98,25 +108,33 @@ TEST_F(ReadWriteSessionTest, TookanAttackA3) {
   EXPECT_CKR(CKR_ATTRIBUTE_SENSITIVE, rv);
 }
 
-TEST_F(ReadWriteSessionTest, TookanAttackA4) {
+TEST_F(RWUserSessionTest, TookanAttackA4) {
+  REQUIRE_MECHANISM(CKM_AES_KEY_GEN, CKF_GENERATE);
   // Create a non-extractable key.
   ObjectAttributes key_attrs;
   CK_ATTRIBUTE extractable_attr = {CKA_EXTRACTABLE, (CK_VOID_PTR)&g_ck_false, sizeof(CK_BBOOL)};
   CK_ATTRIBUTE sensitive_attr = {CKA_SENSITIVE, (CK_VOID_PTR)&g_ck_false, sizeof(CK_BBOOL)};
   key_attrs.push_back(extractable_attr);
   key_attrs.push_back(sensitive_attr);
-  SecretKey key(session_, key_attrs);
+  SecretKey key(session_, key_attrs, CKM_AES_KEY_GEN, 16);
   // Retrieve its value
   CK_BYTE data[4096];
   CK_ATTRIBUTE attr = {CKA_VALUE, data, sizeof(data)};
   CK_RV rv = g_fns->C_GetAttributeValue(session_, key.handle(), &attr, 1);
+  // A non-extractable secret must not disclose its value, even when it is
+  // non-sensitive. Verify both confidentiality and the unchanged policy.
   EXPECT_CKR(CKR_ATTRIBUTE_SENSITIVE, rv);
+  CK_BBOOL extractable = CK_TRUE;
+  CK_ATTRIBUTE policy = {CKA_EXTRACTABLE, &extractable, sizeof(extractable)};
+  ASSERT_CKR_OK(g_fns->C_GetAttributeValue(session_, key.handle(), &policy, 1));
+  EXPECT_EQ(CK_FALSE, extractable);
 }
 
-TEST_F(ReadWriteSessionTest, TookanAttackA5a) {
+TEST_F(RWUserSessionTest, TookanAttackA5a) {
+  REQUIRE_MECHANISM(CKM_AES_KEY_GEN, CKF_GENERATE);
   // Create a sensitive key.
   vector<CK_ATTRIBUTE_TYPE> key_attrs = {CKA_SENSITIVE};
-  SecretKey key(session_, key_attrs);
+  SecretKey key(session_, key_attrs, CKM_AES_KEY_GEN, 16);
 
   // Try to change it to be non-sensitive
   CK_ATTRIBUTE attr = {CKA_SENSITIVE, (CK_VOID_PTR)&g_ck_false, sizeof(CK_BBOOL)};
@@ -130,14 +148,15 @@ TEST_F(ReadWriteSessionTest, TookanAttackA5a) {
   EXPECT_EQ(CK_TRUE, (CK_BBOOL)data[0]);
 }
 
-TEST_F(ReadWriteSessionTest, TookanAttackA5b) {
+TEST_F(RWUserSessionTest, TookanAttackA5b) {
+  REQUIRE_MECHANISM(CKM_AES_KEY_GEN, CKF_GENERATE);
   // Create a non-extractable key.
   ObjectAttributes key_attrs;
   CK_ATTRIBUTE extractable_attr = {CKA_EXTRACTABLE, (CK_VOID_PTR)&g_ck_false, sizeof(CK_BBOOL)};
   CK_ATTRIBUTE sensitive_attr = {CKA_SENSITIVE, (CK_VOID_PTR)&g_ck_false, sizeof(CK_BBOOL)};
   key_attrs.push_back(extractable_attr);
   key_attrs.push_back(sensitive_attr);
-  SecretKey key(session_, key_attrs);
+  SecretKey key(session_, key_attrs, CKM_AES_KEY_GEN, 16);
 
   // Try to change it to be extractable
   CK_ATTRIBUTE attr = {CKA_EXTRACTABLE, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)};
