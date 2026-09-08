@@ -110,8 +110,9 @@ class DigestTest : public ReadOnlySessionTest,
 
   string PerformDigest(CK_BYTE_PTR data, CK_ULONG datalen) {
     string result = Digest(session_, &mechanism_, data, datalen);
-    if (result != "unimplemented")
+    if (result != "unimplemented") {
       EXPECT_EQ(info_.size, result.size());
+    }
     return result;
   }
 
@@ -406,7 +407,7 @@ TEST_F(ReadOnlySessionTest, DigestTestVectors) {
   }
 }
 
-INSTANTIATE_TEST_CASE_P(Digests, DigestTest,
+INSTANTIATE_TEST_SUITE_P(Digests, DigestTest,
                         ::testing::Values("MD5", "SHA-1", "SHA-256", "SHA-384", "SHA-512"));
 
 }  // namespace test

@@ -103,6 +103,7 @@ TEST_F(PKCS11Test, EnumerateMechanisms) {
     EXPECT_CKR_OK(g_fns->C_GetMechanismInfo(g_slot_id, mechanism_type, &mechanism_info));
     if (g_verbose) cout << "mechanism[" << ii << "]=" << mechanism_type_name(mechanism_type)
                         << " " << mechanism_info_description(&mechanism_info) << endl;
+
     EXPECT_LE(mechanism_info.ulMinKeySize, mechanism_info.ulMaxKeySize);
     // The mechanism tables in this old suite are not an exhaustive capability
     // registry. Validate defined flag bits, including newer standard APIs.

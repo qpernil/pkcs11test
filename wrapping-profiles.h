@@ -58,9 +58,11 @@ inline const std::vector<WrappingProfile>& WrappingCandidates() {
 typedef std::map<CK_MECHANISM_TYPE, CK_MECHANISM_INFO> WrappingCapabilities;
 
 inline std::vector<WrappingProfile> SelectWrappingProfiles(
-    const WrappingCapabilities& capabilities, CK_FLAGS required_flags) {
+    const WrappingCapabilities& capabilities, CK_FLAGS required_flags,
+    const std::string& selected = "auto") {
   std::vector<WrappingProfile> result;
   for (WrappingProfile profile : WrappingCandidates()) {
+    if (selected != "auto" && selected != profile.name) continue;
     auto generation = capabilities.find(profile.generation);
     auto wrapping = capabilities.find(profile.mechanism);
     if (generation == capabilities.end() || wrapping == capabilities.end() ||
@@ -106,7 +108,7 @@ inline CK_RV LoadWrappingProfiles(CK_FLAGS required_flags,
     if (rv != CKR_OK) return rv;
     capabilities[mechanism] = info;
   }
-  *result = SelectWrappingProfiles(capabilities, required_flags);
+  *result = SelectWrappingProfiles(capabilities, required_flags, g_wrap_mechanism);
   return CKR_OK;
 }
 

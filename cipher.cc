@@ -674,7 +674,7 @@ TEST_P(SecretKeyTest, DecryptFinalErrors2) {
 
 }
 
-INSTANTIATE_TEST_CASE_P(Ciphers, SecretKeyTest,
+INSTANTIATE_TEST_SUITE_P(Ciphers, SecretKeyTest,
                         ::testing::Values("DES-ECB",
                                           "DES-CBC",
                                           "3DES-ECB",
@@ -687,12 +687,13 @@ TEST_F(ReadOnlySessionTest, CreateSecretKeyAttributes) {
   CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
   CK_KEY_TYPE key_type = CKK_AES;
   vector<CK_ATTRIBUTE> attrs = {
+    {CKA_PRIVATE, (CK_VOID_PTR)&g_ck_false, sizeof(CK_BBOOL)},
     {CKA_LABEL, (CK_VOID_PTR)g_label, g_label_len},
     {CKA_ENCRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
     {CKA_DECRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
     {CKA_CLASS, &key_class, sizeof(key_class)},
     {CKA_KEY_TYPE, (CK_VOID_PTR)&key_type, sizeof(key_type)},
-    {CKA_VALUE, (CK_VOID_PTR)key.data(), key.size()},
+    {CKA_VALUE, (CK_VOID_PTR)key.data(), (CK_ULONG)key.size()},
   };
   CK_OBJECT_HANDLE key_object;
   ASSERT_CKR_OK(g_fns->C_CreateObject(session_, attrs.data(), attrs.size(), &key_object));
@@ -737,12 +738,13 @@ TEST_F(RWUserSessionTest, SecretKeyTestVectors) {
       CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
       CK_KEY_TYPE key_type = info.keytype;
       vector<CK_ATTRIBUTE> attrs = {
+        {CKA_PRIVATE, (CK_VOID_PTR)&g_ck_false, sizeof(CK_BBOOL)},
         {CKA_LABEL, (CK_VOID_PTR)g_label, g_label_len},
         {CKA_ENCRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
         {CKA_DECRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
         {CKA_CLASS, &key_class, sizeof(key_class)},
         {CKA_KEY_TYPE, (CK_VOID_PTR)&key_type, sizeof(key_type)},
-        {CKA_VALUE, (CK_VOID_PTR)key.data(), key.size()},
+        {CKA_VALUE, (CK_VOID_PTR)key.data(), (CK_ULONG)key.size()},
       };
       CK_OBJECT_HANDLE key_object;
       ASSERT_CKR_OK(g_fns->C_CreateObject(session_, attrs.data(), attrs.size(), &key_object));

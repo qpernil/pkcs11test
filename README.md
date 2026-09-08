@@ -1,6 +1,6 @@
 pkcs11Test: A PKCS#11 Test Suite
 ================================
-[![Travis](https://img.shields.io/travis/Yubico/pkcs11test.svg)](https://travis-ci.org/Yubico/pkcs11test)
+[![CI](https://github.com/qpernil/pkcs11test/actions/workflows/ci.yml/badge.svg)](https://github.com/qpernil/pkcs11test/actions/workflows/ci.yml)
 
 **Warning: Do not run this test suite against a PKCS#11 token that contains real data; some of the tests may erase or
   permanently lock the token.**
@@ -8,16 +8,40 @@ pkcs11Test: A PKCS#11 Test Suite
 This repository holds a test suite for, and is therefore derived from, the
 [RSA Security Inc. PKCS #11 Cryptographic Token Interface (Cryptoki)](http://www.emc.com/emc-plus/rsa-labs/standards-initiatives/pkcs-11-cryptographic-token-interface-standard.htm).
 
-To build the test program on Linux, just run `make`.  To run the tests against
+The test suite uses the PKCS #11 2.2 API with selected later-version contracts, and covers:
+
+- library management (`init.cc`)
+- slot and token management (`slot.cc`)
+- session management (`session.cc`, `login.cc`)
+- object management (`object.cc`)
+- key management (`key.cc`)
+- symmetric encryption and decryption (`cipher.cc`)
+- asymmetric encryption and decryption (`cipher.cc`)
+- signing and verification (`sign.cc`, `hmac.cc`)
+- message digesting (`digest.cc`)
+- dual-function mechanisms (`dual.cc`)
+
+
+To build the test program on Linux or macOS, run `make`. Google Test 1.10.0 is vendored.  To run the tests against
 common Linux PKCS#11 implementations:
 
- - Run `make test_chaps` to test against a
-   [Chaps](https://github.com/google/chaps-linux) installation.
  - Run `make test_opencryptoki` to test against an
    [OpenCryptoKi](http://sourceforge.net/projects/opencryptoki/) [installation](https://packages.debian.org/wheezy/admin/opencryptoki).
 
+This fork combines [Google's upstream](https://github.com/google/pkcs11test)
+with [YubicoLabs' test extensions](https://github.com/YubicoLabs/pkcs11test) and
+the fixture corrections described below. Both histories are preserved.
+
 This is NOT an official Google product.
 
+Additional make options:
+ - `PKCS11_LONG_SIZE=32` - set `CK_LONG`/`CK_ULONG` size to `int32_t`/`uint32_t`. Normally set to `long int`, which is machine/compiler dependent.
+ - `STRICT_P11=1` - use packed PKCS #11 structures; select this only when it matches the module ABI.
+
+Example:
+```
+make PKCS11_LONG_SIZE=32 STRICT_P11=1
+```
 
 Test Options
 ------------
@@ -33,6 +57,9 @@ There are also several optional command-line parameters:
  - `-v`: Generate verbose output.
  - `-u pwd`: Provide the user PIN/password.
  - `-o pwd`: Provide the security officer PIN/password.
+ - `-w name`: Restrict general wrapping tests to a named profile from the fixture catalog (for example `AES-KWP` or `3DES-ECB`); the default `auto` runs all compatible profiles. An unsupported selection reports SKIPPED.
+ - `-S index`: Select a token-present slot by zero-based index.
+ - `-U pwd`, `-O pwd`: Supply expected reset user and SO PINs for fixtures that need them.
  - `-I`: Perform token initialization tests. **This will wipe the contents of the PKCS#11 token**
 
 The test program uses [Google Test](https://code.google.com/p/googletest/), and
@@ -84,7 +111,9 @@ not bytes.
 `PublicExponent4Bytes` supplies complete boolean attributes and tests the
 unsigned big-endian value `00 01 00 01`. RSA encryption checks ciphertext length
 against the actual modulus size. HMAC generation supplies `CKA_VALUE_LEN`.
-Secret-key import checks use a complete AES key, not an empty value.
+Secret-key import checks use a complete AES key, not an empty value. HMAC
+vectors preserve their published key bytes; unsupported short-key policies
+produce an explicit skip instead of silently modifying the vector.
 
 Token initialization verifies the PIN supplied to `C_InitPIN`. The wrong-SO-PIN
 fixture preserves the supplied PIN's length and initial character family to

@@ -45,6 +45,11 @@ TEST_P(DualSecretKeyTest, DigestEncrypt) {
   REQUIRE_MECHANISM(info_.keygen, CKF_GENERATE);
   REQUIRE_MECHANISM(info_.mode, CKF_ENCRYPT | CKF_DECRYPT);
   REQUIRE_MECHANISM(digest_info_.type, CKF_DIGEST);
+  if (!(g_token_flags & CKF_DUAL_CRYPTO_OPERATIONS)) {
+    TEST_SKIPPED("Dual digest+encrypt not supported");
+    return;
+  }
+
   // Start digest and encryption operations
   ASSERT_CKR_OK(g_fns->C_DigestInit(session_, &digest_mechanism_));
   ASSERT_CKR_OK(g_fns->C_EncryptInit(session_, &mechanism_, key_.handle()));
@@ -118,7 +123,7 @@ TEST_P(DualSecretKeyTest, DigestEncrypt) {
   EXPECT_EQ(hex_data(buffer, digest_len), hex_data(buffer2, digest2_len));
 }
 
-INSTANTIATE_TEST_CASE_P(Duals, DualSecretKeyTest,
+INSTANTIATE_TEST_SUITE_P(Duals, DualSecretKeyTest,
                         ::testing::Values("DES-ECB",
                                           "DES-CBC",
                                           "3DES-ECB",

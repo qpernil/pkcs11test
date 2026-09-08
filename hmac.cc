@@ -199,8 +199,9 @@ TEST_P(HmacTest, SignFailVerify) {
              g_fns->C_Verify(session_, data_.get(), datalen_, output, output_len));
 }
 
-INSTANTIATE_TEST_CASE_P(HMACs, HmacTest,
-                        ::testing::Values( "SHA1-HMAC",
+INSTANTIATE_TEST_SUITE_P(HMACs, HmacTest,
+                        ::testing::Values("MD5-HMAC",
+                                          "SHA1-HMAC",
                                           "SHA256-HMAC",
                                           "SHA384-HMAC",
                                           "SHA512-HMAC"));
@@ -211,8 +212,9 @@ TEST_F(RWUserSessionTest, HmacTestVectors) {
     HmacInfo info = kHmacInfo[kv.first];
     for (const TestData& testcase : kv.second) {
       string key = hex_decode(testcase.key);
-      if(key.length() < 16)
-        key.append(16 - key.length(), 0); // Depends on the fact that trailing zeros don't affect the HMAC value
+      // Preserve the published key bytes. Some tokens reject keys shorter
+      // than the digest output, as allowed by the mechanism's size policy.
+      bool short_key = testcase.key.size() < testcase.hash.size();
       CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
       CK_KEY_TYPE key_type = CKK_GENERIC_SECRET;
       if(kv.first == "SHA1-HMAC") {
@@ -230,19 +232,20 @@ TEST_F(RWUserSessionTest, HmacTestVectors) {
         {CKA_VERIFY, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
         {CKA_CLASS, &key_class, sizeof(key_class)},
         {CKA_KEY_TYPE, (CK_VOID_PTR)&key_type, sizeof(key_type)},
-        {CKA_VALUE, (CK_VOID_PTR)key.data(), key.size()},
+        {CKA_VALUE, (CK_VOID_PTR)key.data(), (CK_ULONG)key.size()},
       };
       CK_OBJECT_HANDLE key_object;
       CK_RV rv = g_fns->C_CreateObject(session_, attrs.data(), attrs.size(), &key_object);
-      if(rv == CKR_ATTRIBUTE_VALUE_INVALID) {
-        continue;
-      }
+      ASSERT_CKR_OK(rv);
 
       CK_MECHANISM mechanism = {info.hmac, NULL_PTR, 0};
 
       rv = g_fns->C_SignInit(session_, &mechanism, key_object);
-      if (rv == CKR_MECHANISM_INVALID)
+      if (rv == CKR_MECHANISM_INVALID || (short_key && rv == CKR_KEY_SIZE_RANGE)) {
+        TEST_SKIPPED(std::string("HMAC vector unsupported: ") + kv.first);
+        EXPECT_CKR_OK(g_fns->C_DestroyObject(session_, key_object));
         continue;
+      }
       ASSERT_CKR_OK(rv);
 
       string data = hex_decode(testcase.data);
@@ -251,6 +254,7 @@ TEST_F(RWUserSessionTest, HmacTestVectors) {
       EXPECT_CKR_OK(g_fns->C_Sign(session_, (CK_BYTE_PTR)data.data(), data.size(), output, &output_len));
       string output_hex = hex_data(output, output_len);
       EXPECT_EQ(testcase.hash, output_hex);
+      EXPECT_CKR_OK(g_fns->C_DestroyObject(session_, key_object));
     }
   }
 }

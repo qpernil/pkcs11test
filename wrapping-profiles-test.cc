@@ -6,6 +6,7 @@ namespace test {
 // This executable exercises discovery decisions without loading a token module.
 CK_FUNCTION_LIST_PTR g_fns = NULL_PTR;
 CK_SLOT_ID g_slot_id = 0;
+const char* g_wrap_mechanism = "auto";
 
 TEST(WrappingProfiles, RequiresGenerationAndRequestedOperations) {
   WrappingCapabilities capabilities;
@@ -37,6 +38,10 @@ TEST(WrappingProfiles, SelectsEveryCompatibleProfile) {
   EXPECT_EQ(CKM_AES_KEY_WRAP_KWP, profiles[1].mechanism);
   EXPECT_EQ(CKM_DES3_ECB, profiles[2].mechanism);
   EXPECT_EQ(-1, profiles[2].key_length);
+  profiles = SelectWrappingProfiles(capabilities, CKF_WRAP, "AES-KWP");
+  ASSERT_EQ(1U, profiles.size());
+  EXPECT_EQ(CKM_AES_KEY_WRAP_KWP, profiles[0].mechanism);
+  EXPECT_TRUE(SelectWrappingProfiles(capabilities, CKF_WRAP, "AES-ECB").empty());
 }
 
 TEST(WrappingProfiles, IntersectsAesSizesAndRespectsBlockAlignment) {

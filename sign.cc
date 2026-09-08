@@ -62,7 +62,7 @@ class SignTest : public RWUserSessionTest,
 #define SKIP_IF_UNIMPLEMENTED_RV(rv) \
     if ((rv) == CKR_MECHANISM_INVALID) {  \
       stringstream ss; \
-      ss << "Digest type " << mechanism_type_name(mechanism_.mechanism) << " not implemented"; \
+      ss << "Signing with " << mechanism_type_name(mechanism_.mechanism) << " not implemented"; \
       TEST_SKIPPED(ss.str()); \
       return; \
     }
@@ -125,7 +125,7 @@ TEST_F(ROUserSessionTest, SignVerifyRecover) {
   }
   if ((rv) == CKR_MECHANISM_INVALID) {
     stringstream ss;
-    ss << "Digest type " << mechanism_type_name(mechanism.mechanism) << " not implemented";
+    ss << "Signing with " << mechanism_type_name(mechanism.mechanism) << " not implemented";
     TEST_SKIPPED(ss.str());
     return;
   }
@@ -146,7 +146,7 @@ TEST_F(ROUserSessionTest, SignVerifyRecover) {
   EXPECT_EQ(0, memcmp(data.get(), recovered, datalen));
 }
 
-INSTANTIATE_TEST_CASE_P(Signatures, SignTest,
+INSTANTIATE_TEST_SUITE_P(Signatures, SignTest,
                         ::testing::Values("RSA",
                                           "MD5-RSA",
                                           "SHA1-RSA",

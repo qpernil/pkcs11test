@@ -39,8 +39,9 @@ TEST_F(ReadOnlySessionTest, UserLoginWrongPIN) {
   EXPECT_CKR_OK(g_fns->C_Logout(session_));
 
   EXPECT_CKR_OK(g_fns->C_GetTokenInfo(g_slot_id, &info));
-  if (!(info.flags & CKF_PROTECTED_AUTHENTICATION_PATH))
+  if (!(info.flags & CKF_PROTECTED_AUTHENTICATION_PATH)) {
     EXPECT_FALSE(info.flags & CKF_USER_PIN_COUNT_LOW);
+  }
 }
 
 TEST_F(ReadOnlySessionTest, UserLoginInvalid) {

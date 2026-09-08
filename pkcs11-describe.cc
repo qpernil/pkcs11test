@@ -156,8 +156,12 @@ string rv_name(CK_RV val) {
     case CKR_NEW_PIN_MODE: return "CKR_NEW_PIN_MODE";
     case CKR_NEXT_OTP: return "CKR_NEXT_OTP";
     case CKR_FUNCTION_REJECTED: return "CKR_FUNCTION_REJECTED";
-    case CKR_VENDOR_DEFINED: return "CKR_VENDOR_DEFINED";
-    default: return "UNKNOWN";
+    default:
+        if (val >= CKR_VENDOR_DEFINED) {
+            return "CKR_VENDOR_DEFINED";
+        } else {
+            return "UNKNOWN";
+        }
   }
 }
 
@@ -986,7 +990,7 @@ string slot_description(CK_SLOT_INFO_PTR slot) {
   // PKCS#11 s9.2: Slot and token types
   stringstream ss;
   ss <<"CK_SLOT_INFO {";
-  ss << ".slotDescription='" << ck_char(slot->slotDescription, 32) << "', ";
+  ss << ".slotDescription='" << ck_char(slot->slotDescription, 64) << "', ";
   ss << ".manufacturerID='" << ck_char(slot->manufacturerID, 32) << "', ";
   ss << ".hardwareVersion="
      << static_cast<int>(slot->hardwareVersion.major) << "."

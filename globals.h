@@ -16,10 +16,9 @@
 // limitations under the License.
 
 #include "pkcs11-env.h"
-#include <pkcs11.h>
 
-#include <set>
 #include <map>
+#include <set>
 #include <string>
 
 namespace pkcs11 {
@@ -48,6 +47,8 @@ extern const char* g_so_pin;
 extern const char* g_reset_user_pin;
 // Security Officer PIN after token reset.  Only used if (g_token_flags & CKF_LOGIN_REQUIRED).
 extern const char* g_reset_so_pin;
+// Optional symmetric-wrapping profile filter; auto selects all compatible profiles.
+extern const char* g_wrap_mechanism;
 
 // Algorithm information.  These tables are effectively const, but not marked as
 // const so operator[] can be used for convenience.
@@ -93,6 +94,8 @@ extern std::set<CK_MECHANISM_TYPE> generate_mechanisms;
 extern std::set<CK_MECHANISM_TYPE> wrap_unwrap_mechanisms;
 // PKCS#11 mechanisms for derive.
 extern std::set<CK_MECHANISM_TYPE> derive_mechanisms;
+// PKCS#11 mechanisms for elliptic curve cryptography.
+extern std::set<CK_MECHANISM_TYPE> elliptic_curve_mechanisms;
 
 // Global variables for boolean values.  These are useful in object
 // attribute lists.

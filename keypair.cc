@@ -114,7 +114,7 @@ TEST_F(RWUserSessionTest, EncryptDecrypt) {
   ASSERT_CKR_OK(rv);
 
   CK_BYTE recovered_plaintext[1024];
-  CK_ULONG recovered_plaintext_len = sizeof(plaintext);
+  CK_ULONG recovered_plaintext_len = sizeof(recovered_plaintext);
   rv = g_fns->C_Decrypt(session_, ciphertext, ciphertext_len, recovered_plaintext, &recovered_plaintext_len);
   EXPECT_CKR_OK(rv);
   EXPECT_EQ(plaintext_len, recovered_plaintext_len);
@@ -126,11 +126,13 @@ TEST_F(RWUserSessionTest, PublicExponent4Bytes) {
   CK_ULONG modulus_bits = 1024;
   CK_BYTE public_exponent_value[] = {0x00, 0x1, 0x0, 0x1}; // 65537=0x00010001
   vector<CK_ATTRIBUTE> public_attrs = {
+    {CKA_PRIVATE, (CK_VOID_PTR)&g_ck_false, sizeof(CK_BBOOL)},
     {CKA_ENCRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
     {CKA_MODULUS_BITS, &modulus_bits, sizeof(modulus_bits)},
     {CKA_PUBLIC_EXPONENT, public_exponent_value, sizeof(public_exponent_value)},
   };
   vector<CK_ATTRIBUTE> private_attrs = {
+    {CKA_PRIVATE, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
     {CKA_DECRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
   };
   CK_MECHANISM mechanism = {CKM_RSA_PKCS_KEY_PAIR_GEN, NULL_PTR, 0};
@@ -190,6 +192,7 @@ TEST_F(RWUserSessionTest, AsymmetricTokenKeyPair) {
   CK_ATTRIBUTE public_attrs[] = {
     {CKA_ENCRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
     {CKA_TOKEN, (CK_VOID_PTR)&g_ck_false, sizeof(CK_BBOOL)},
+    {CKA_PRIVATE, (CK_VOID_PTR)&g_ck_false, sizeof(CK_BBOOL)},
     {CKA_LABEL, (CK_VOID_PTR)g_label, g_label_len},
     {CKA_MODULUS_BITS, &modulus_bits, sizeof(modulus_bits)},
     {CKA_PUBLIC_EXPONENT, public_exponent_value, sizeof(public_exponent_value)},
@@ -197,14 +200,15 @@ TEST_F(RWUserSessionTest, AsymmetricTokenKeyPair) {
   CK_ATTRIBUTE private_attrs[] = {
     {CKA_DECRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
     {CKA_TOKEN, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
+    {CKA_PRIVATE, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
     {CKA_LABEL, (CK_VOID_PTR)g_label, g_label_len},
   };
   CK_MECHANISM mechanism = {CKM_RSA_PKCS_KEY_PAIR_GEN, NULL_PTR, 0};
   CK_OBJECT_HANDLE public_key;
   CK_OBJECT_HANDLE private_key;
   CK_RV rv = g_fns->C_GenerateKeyPair(session_, &mechanism,
-                                      public_attrs, 5,
-                                      private_attrs, 3,
+                                      public_attrs, sizeof(public_attrs) / sizeof(public_attrs[0]),
+                                      private_attrs, sizeof(private_attrs) / sizeof(private_attrs[0]),
                                       &public_key, &private_key);
   if (rv == CKR_OK) {
     EXPECT_CKR_OK(g_fns->C_DestroyObject(session_, public_key));
@@ -227,10 +231,11 @@ TEST_F(ReadOnlySessionTest, CreateKeyPairObjects) {
     {CKA_ENCRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
     {CKA_VERIFY, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
     {CKA_TOKEN, (CK_VOID_PTR)&g_ck_false, sizeof(CK_BBOOL)},
+    {CKA_PRIVATE, (CK_VOID_PTR)&g_ck_false, sizeof(CK_BBOOL)},
     {CKA_CLASS, &public_key_class, sizeof(public_key_class)},
     {CKA_KEY_TYPE, (CK_VOID_PTR)&key_type, sizeof(key_type)},
-    {CKA_PUBLIC_EXPONENT, (CK_VOID_PTR)public_exponent.data(), public_exponent.size()},
-    {CKA_MODULUS, (CK_VOID_PTR)public_modulus.data(), public_modulus.size()},
+    {CKA_PUBLIC_EXPONENT, (CK_VOID_PTR)public_exponent.data(), (CK_ULONG)public_exponent.size()},
+    {CKA_MODULUS, (CK_VOID_PTR)public_modulus.data(), (CK_ULONG)public_modulus.size()},
   };
   EXPECT_CKR_OK(g_fns->C_CreateObject(session_,
                                       public_attrs.data(),
@@ -246,36 +251,37 @@ TEST_F(ReadOnlySessionTest, CreateKeyPairObjects) {
     {CKA_SENSITIVE, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
     {CKA_EXTRACTABLE, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
     {CKA_TOKEN, (CK_VOID_PTR)&g_ck_false, sizeof(CK_BBOOL)},
+    {CKA_PRIVATE, (CK_VOID_PTR)&g_ck_false, sizeof(CK_BBOOL)},
     {CKA_CLASS, &private_key_class, sizeof(private_key_class)},
     {CKA_KEY_TYPE, (CK_VOID_PTR)&key_type, sizeof(key_type)},
-    {CKA_PUBLIC_EXPONENT, (CK_VOID_PTR)public_exponent.data(), public_exponent.size()},
-    {CKA_PRIVATE_EXPONENT, (CK_BYTE_PTR)private_exponent.data(), private_exponent.size()},
-    {CKA_MODULUS, (CK_VOID_PTR)public_modulus.data(), public_modulus.size()},
+    {CKA_PUBLIC_EXPONENT, (CK_VOID_PTR)public_exponent.data(), (CK_ULONG)public_exponent.size()},
+    {CKA_PRIVATE_EXPONENT, (CK_BYTE_PTR)private_exponent.data(), (CK_ULONG)private_exponent.size()},
+    {CKA_MODULUS, (CK_VOID_PTR)public_modulus.data(), (CK_ULONG)public_modulus.size()},
   };
   string prime1data;
   if (!keydata.prime1.empty()) {
     prime1data = hex_decode(keydata.prime1);
-    private_attrs.push_back({CKA_PRIME_1, (CK_BYTE_PTR)prime1data.data(), prime1data.size()});
+    private_attrs.push_back({CKA_PRIME_1, (CK_BYTE_PTR)prime1data.data(), (CK_ULONG)prime1data.size()});
   }
   string prime2data;
   if (!keydata.prime2.empty()) {
     prime2data = hex_decode(keydata.prime2);
-    private_attrs.push_back({CKA_PRIME_2, (CK_BYTE_PTR)prime2data.data(), prime2data.size()});
+    private_attrs.push_back({CKA_PRIME_2, (CK_BYTE_PTR)prime2data.data(), (CK_ULONG)prime2data.size()});
   }
   string exponent1data;
   if (!keydata.exponent1.empty()) {
     exponent1data = hex_decode(keydata.exponent1);
-    private_attrs.push_back({CKA_EXPONENT_1, (CK_BYTE_PTR)exponent1data.data(), exponent1data.size()});
+    private_attrs.push_back({CKA_EXPONENT_1, (CK_BYTE_PTR)exponent1data.data(), (CK_ULONG)exponent1data.size()});
   }
   string exponent2data;
   if (!keydata.exponent2.empty()) {
     exponent2data = hex_decode(keydata.exponent2);
-    private_attrs.push_back({CKA_EXPONENT_2, (CK_BYTE_PTR)exponent2data.data(), exponent2data.size()});
+    private_attrs.push_back({CKA_EXPONENT_2, (CK_BYTE_PTR)exponent2data.data(), (CK_ULONG)exponent2data.size()});
   }
   string coefficientdata;
   if (!keydata.coefficient.empty()) {
     coefficientdata = hex_decode(keydata.coefficient);
-    private_attrs.push_back({CKA_COEFFICIENT, (CK_BYTE_PTR)coefficientdata.data(), coefficientdata.size()});
+    private_attrs.push_back({CKA_COEFFICIENT, (CK_BYTE_PTR)coefficientdata.data(), (CK_ULONG)coefficientdata.size()});
   }
   EXPECT_CKR_OK(g_fns->C_CreateObject(session_,
                                       private_attrs.data(),

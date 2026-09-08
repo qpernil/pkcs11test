@@ -17,10 +17,8 @@
 
 // Master header for all PKCS#11 test code.
 
-// Set up the environment for PKCS#11
+// Set up the environment for PKCS#11 and include the official PKCS#11 header file.
 #include "pkcs11-env.h"
-// Include the official PKCS#11 header file.
-#include <pkcs11.h>
 // Test-wide global variables (specifically g_fns)
 #include "globals.h"
 // Utilities to convert PKCS#11 types to strings.
@@ -177,14 +175,14 @@ class RWSOSessionTest : public ReadWriteSessionTest {
 // The following test fixtures perform a login if the token flags indicate login is required.
 class ROEitherSessionTest : public ReadOnlySessionTest {
  public:
-  ROEitherSessionTest() { if (g_token_flags & CKF_LOGIN_REQUIRED) Login(CKU_USER, g_user_pin); }
-  virtual ~ROEitherSessionTest() { if (g_token_flags & CKF_LOGIN_REQUIRED) EXPECT_CKR_OK(g_fns->C_Logout(session_)); }
+  ROEitherSessionTest() { if (g_token_flags & CKF_LOGIN_REQUIRED) { Login(CKU_USER, g_user_pin); } }
+  virtual ~ROEitherSessionTest() { if (g_token_flags & CKF_LOGIN_REQUIRED) { EXPECT_CKR_OK(g_fns->C_Logout(session_)); } }
 };
 
 class RWEitherSessionTest : public ReadWriteSessionTest {
  public:
-  RWEitherSessionTest() { if (g_token_flags & CKF_LOGIN_REQUIRED) Login(CKU_USER, g_user_pin); }
-  virtual ~RWEitherSessionTest() { if (g_token_flags & CKF_LOGIN_REQUIRED) EXPECT_CKR_OK(g_fns->C_Logout(session_)); }
+  RWEitherSessionTest() { if (g_token_flags & CKF_LOGIN_REQUIRED) { Login(CKU_USER, g_user_pin); } }
+  virtual ~RWEitherSessionTest() { if (g_token_flags & CKF_LOGIN_REQUIRED) { EXPECT_CKR_OK(g_fns->C_Logout(session_)); } }
 };
 
 // RAII objects for different types of session.
@@ -264,7 +262,7 @@ class SecretKey {
  public:
   // Create a secret key with the given list of (boolean) attributes set to true.
   SecretKey(CK_SESSION_HANDLE session, const ObjectAttributes& attrs,
-            CK_MECHANISM_TYPE keygen_mechanism = CKM_DES_KEY_GEN,
+            CK_MECHANISM_TYPE keygen_mechanism = CKM_DES3_KEY_GEN,
             int keylen = -1)
     : session_(session), attrs_(attrs), key_(INVALID_OBJECT_HANDLE) {
     DefaultAttribute(attrs_, CKA_TOKEN, &g_ck_false);
@@ -315,6 +313,8 @@ class KeyPair {
     CK_BYTE public_exponent_value[] = {0x1, 0x0, 0x1}; // 65537=0x010001
     CK_ATTRIBUTE public_exponent = {CKA_PUBLIC_EXPONENT, public_exponent_value, sizeof(public_exponent_value)};
     public_attrs_.push_back(public_exponent);
+
+    DefaultAttribute(public_attrs_, CKA_PRIVATE, &g_ck_false);
 
     CK_MECHANISM mechanism = {CKM_RSA_PKCS_KEY_PAIR_GEN, NULL_PTR, 0};
     EXPECT_CKR_OK(g_fns->C_GenerateKeyPair(session_, &mechanism,
