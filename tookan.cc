@@ -69,28 +69,35 @@ TEST_F(ROEitherSessionTest, TookanAttackA2) {
   vector<CK_ATTRIBUTE_TYPE> k2_public_attrs = {CKA_WRAP};
   vector<CK_ATTRIBUTE_TYPE> k2_private_attrs = {CKA_DECRYPT};
   KeyPair k2(session_, k2_public_attrs, k2_private_attrs);
-  // Use k2 to wrap k1.
+  // Prove that the advertised wrapping/decryption path works for an
+  // extractable control of the same key type before testing rejection.
+  ObjectAttributes control_attrs;
+  SecretKey control(session_, control_attrs, CKM_AES_KEY_GEN, 16);
+  ASSERT_TRUE(k1.valid());
+  ASSERT_TRUE(k2.valid());
+  ASSERT_TRUE(control.valid());
   CK_MECHANISM wrap_mechanism = {CKM_RSA_PKCS, NULL_PTR, 0};
-  CK_BYTE data[4096];
-  CK_ULONG data_len = sizeof(data);
-  CK_RV rv;
-  rv = g_fns->C_WrapKey(session_, &wrap_mechanism, k2.public_handle(), k1.handle(), data, &data_len);
-  if (rv == CKR_FUNCTION_NOT_SUPPORTED) {
-    TEST_SKIPPED("Key wrapping not supported");
-    return;
-  }
-  EXPECT_TRUE(rv == CKR_KEY_NOT_WRAPPABLE ||
-              rv == CKR_KEY_UNEXTRACTABLE) << " rv=" << CK_RV_(rv);
+  CK_BYTE wrapped[4096];
+  CK_ULONG wrapped_len = sizeof(wrapped);
+  ASSERT_CKR_OK(g_fns->C_WrapKey(session_, &wrap_mechanism, k2.public_handle(),
+                                control.handle(), wrapped, &wrapped_len));
+  CK_BYTE expected[16];
+  CK_ATTRIBUTE value = {CKA_VALUE, expected, sizeof(expected)};
+  ASSERT_CKR_OK(g_fns->C_GetAttributeValue(session_, control.handle(), &value, 1));
+  ASSERT_EQ(sizeof(expected), value.ulValueLen);
+  CK_BYTE recovered[4096];
+  CK_ULONG recovered_len = sizeof(recovered);
+  ASSERT_CKR_OK(g_fns->C_DecryptInit(session_, &wrap_mechanism, k2.private_handle()));
+  ASSERT_CKR_OK(g_fns->C_Decrypt(session_, wrapped, wrapped_len, recovered, &recovered_len));
+  ASSERT_EQ(value.ulValueLen, recovered_len);
+  EXPECT_EQ(0, memcmp(expected, recovered, recovered_len));
 
-  if (rv == CKR_OK) {
-    // Use k2 to decrypt the result, giving contents of k1.
-    EXPECT_CKR_OK(g_fns->C_DecryptInit(session_, &wrap_mechanism, k2.private_handle()));
-    CK_ULONG key_out_len = sizeof(data);
-    rv = g_fns->C_Decrypt(session_, data, data_len, data, &key_out_len);
-    if (rv == CKR_OK) {
-      cerr << "Secret key is: " << hex_data(data, key_out_len) << endl;
-    }
-  }
+  wrapped_len = sizeof(wrapped);
+  CK_RV rv = g_fns->C_WrapKey(session_, &wrap_mechanism, k2.public_handle(),
+                             k1.handle(), wrapped, &wrapped_len);
+  // Once advertised prerequisites qualify, unsupported execution is a failure.
+  EXPECT_TRUE(rv == CKR_KEY_NOT_WRAPPABLE || rv == CKR_KEY_UNEXTRACTABLE) << CK_RV_(rv);
+
 }
 
 TEST_F(ReadOnlySessionTest, TookanAttackA3) {

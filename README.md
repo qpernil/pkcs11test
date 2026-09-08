@@ -92,6 +92,8 @@ vendor-specific wrapping schemes need an explicit fixture definition.
 The round-trip test requires wrap and unwrap; it additionally compares direct
 decryption when advertised. The security test requires wrap and decrypt and
 first proves that the same wrapping key can export an extractable control key.
+The RSA Tookan A2 case also wraps and decrypts a control key before checking
+protected-key rejection; unsupported execution of an advertised operation fails.
 Each selected profile is named in output and failure traces. No compatible
 profile produces a named SKIPPED result. Once a profile qualifies, generation
 or operation errors remain failures, including `CKR_FUNCTION_NOT_SUPPORTED`.
