@@ -3,3 +3,5 @@ libgtest.a
 *.o
 opencryptoki.out
 README.html
+/wrapping-profiles-test
+/wrapping-profiles-test.dSYM/

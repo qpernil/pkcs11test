@@ -494,8 +494,11 @@ TEST_P(SecretKeyTest, CancelActiveEncryptionAndDecryption) {
 }
 
 TEST_P(SecretKeyTest, EncryptInvalidIV) {
-  if (!info_.has_iv) return;
   SKIP_IF_UNIMPLEMENTED(info_);
+  if (!info_.has_iv) {
+    TEST_SKIPPED("IV validation is not applicable to ECB");
+    return;
+  }
   CK_MECHANISM mechanism = {info_.mode, iv_.get(), (CK_ULONG)(info_.blocksize - 1)};
   EXPECT_CKR(CKR_MECHANISM_PARAM_INVALID,
              g_fns->C_EncryptInit(session_, &mechanism, key_.handle()));
@@ -509,8 +512,11 @@ TEST_P(SecretKeyTest, EncryptInvalidIV) {
 }
 
 TEST_P(SecretKeyTest, DecryptInvalidIV) {
-  if (!info_.has_iv) return;
   SKIP_IF_UNIMPLEMENTED(info_);
+  if (!info_.has_iv) {
+    TEST_SKIPPED("IV validation is not applicable to ECB");
+    return;
+  }
   CK_MECHANISM mechanism = {info_.mode, iv_.get(), (CK_ULONG)(info_.blocksize - 1)};
   EXPECT_CKR(CKR_MECHANISM_PARAM_INVALID,
              g_fns->C_DecryptInit(session_, &mechanism, key_.handle()));

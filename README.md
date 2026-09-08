@@ -46,10 +46,32 @@ Fixture contracts
 Fixtures use standard PKCS #11 behavior, explicit key policies, and advertised
 capabilities. Missing mechanisms or required operation flags produce a named
 skip; other discovery errors remain failures. General object, digest-key, and
-attribute-policy tests use AES-128 or generic secrets. DES-specific cipher and
-wrap tests retain DES and skip when it is unavailable. RSA fixtures use
+attribute-policy tests use AES-128 or generic secrets. Algorithm-specific cipher
+cases retain their algorithms and report SKIPPED when unavailable. IV checks
+report SKIPPED for ECB, where no IV is used. RSA fixtures use
 1024- or 2048-bit keys; a token's key-size and security policies can further
 restrict which fixtures it supports.
+
+The general `WrapUnwrap`, `WrapInvalid`, `UnwrapInvalid`, and `TookanAttackA1`
+cases run every compatible profile from a standard symmetric-wrapping catalog:
+AES-KW/KW-PAD/KWP and AES, 3DES, or DES in ECB, CBC, or CBC-PAD mode. Selection
+requires advertised key generation and the operations used by that case, plus
+a compatible AES key size. Unpadded AES fixtures use block-aligned payloads;
+fixed-size DES/3DES do not use the mechanism's min/max key-size fields. New or
+vendor-specific wrapping schemes need an explicit fixture definition.
+
+The round-trip test requires wrap and unwrap; it additionally compares direct
+decryption when advertised. The security test requires wrap and decrypt and
+first proves that the same wrapping key can export an extractable control key.
+Each selected profile is named in output and failure traces. No compatible
+profile produces a named SKIPPED result. Once a profile qualifies, generation
+or operation errors remain failures, including `CKR_FUNCTION_NOT_SUPPORTED`.
+The catalog is chosen from standard contracts, independently of the module
+under test; no token manufacturer or implementation name is special-cased.
+
+Run the seven selector/discovery regressions without a PKCS #11 module using
+`make check`. They cover absent capabilities, required flags, multiple eligible
+profiles, key-size intersections, IV initialization, and discovery errors.
 
 The shared key helpers create session objects by default. Secret keys default
 to public, non-sensitive, and extractable so value comparison and wrapping

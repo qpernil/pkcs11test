@@ -17,6 +17,8 @@ GTEST_INC=-isystem $(GTEST_DIR)/include
 CXXFLAGS+=-Ithird_party/pkcs11  $(GTEST_INC) -g -std=c++0x -Wall
 OBJECTS=pkcs11test.o pkcs11-describe.o describe.o globals.o init.o slot.o session.o object.o login.o rng.o tookan.o keypair.o cipher.o digest.o sign.o hmac.o key.o dual.o
 
+key.o tookan.o: wrapping-profiles.h
+
 $(OBJECTS): pkcs11test.h pkcs11-describe.h third_party/pkcs11/pkcs11.h third_party/pkcs11/pkcs11t.h third_party/pkcs11/pkcs11f.h
 
 pkcs11test: $(OBJECTS) libgtest.a
@@ -28,4 +30,11 @@ libgtest.a: gtest-all.o
 	$(AR) -rv libgtest.a gtest-all.o
 
 clean:
-	rm -rf pkcs11test $(OBJECTS) gtest-all.o libgtest.a opencryptoki.out
+	rm -rf pkcs11test wrapping-profiles-test wrapping-profiles-test.dSYM $(OBJECTS) gtest-all.o libgtest.a opencryptoki.out
+
+.PHONY: check
+check: wrapping-profiles-test
+	./wrapping-profiles-test
+
+wrapping-profiles-test: wrapping-profiles-test.cc wrapping-profiles.h pkcs11test.h globals.h libgtest.a
+	$(CXX) $(CXXFLAGS) -o $@ wrapping-profiles-test.cc libgtest.a -lpthread

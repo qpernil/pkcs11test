@@ -19,6 +19,7 @@
 //   C_UnwrapKey
 //   C_DeriveKey
 #include "pkcs11test.h"
+#include "wrapping-profiles.h"
 
 using namespace std;  // So sue me
 
@@ -94,155 +95,157 @@ TEST_F(ReadOnlySessionTest, GenerateKeyPairInvalid) {
 }
 
 
-TEST_F(ROUserSessionTest, WrapUnwrap) {
-  REQUIRE_MECHANISM(CKM_DES_KEY_GEN, CKF_GENERATE);
-  REQUIRE_MECHANISM(CKM_DES_ECB, CKF_WRAP | CKF_UNWRAP | CKF_DECRYPT);
-  ObjectAttributes k1_attrs = ObjectAttributes();
-  CK_ATTRIBUTE insensitive_attr = {CKA_SENSITIVE, &g_ck_false, sizeof(g_ck_false)};
-  k1_attrs.push_back(insensitive_attr);
-  SecretKey k1(session_, k1_attrs);
+namespace {
 
-  vector<CK_ATTRIBUTE_TYPE> k2_attrs = {CKA_WRAP, CKA_UNWRAP, CKA_DECRYPT};
-  SecretKey k2(session_, k2_attrs);
-
-  // Use k2 to wrap k1.
-  CK_MECHANISM wrap_mechanism = {CKM_DES_ECB, NULL_PTR, 0};
-  CK_BYTE data[4096];
-  CK_ULONG data_len = sizeof(data);
-  CK_RV rv = g_fns->C_WrapKey(session_, &wrap_mechanism, k2.handle(), k1.handle(), data, &data_len);
-  if (rv == CKR_FUNCTION_NOT_SUPPORTED) {
-    TEST_SKIPPED("Key wrapping not supported");
-    return;
+// Ensure the unwrapped session object is cleaned up after fatal assertions too.
+struct UnwrappedObject {
+  explicit UnwrappedObject(CK_SESSION_HANDLE s) : session(s), handle(0) {}
+  ~UnwrappedObject() {
+    if (handle) EXPECT_CKR_OK(g_fns->C_DestroyObject(session, handle));
   }
-  EXPECT_CKR_OK(rv);
+  CK_SESSION_HANDLE session;
+  CK_OBJECT_HANDLE handle;
+};
 
-  // Use k2 to decrypt the result, giving contents of k1.
-  EXPECT_CKR_OK(g_fns->C_DecryptInit(session_, &wrap_mechanism, k2.handle()));
-  CK_BYTE key[4096];
-  CK_ULONG key_out_len = sizeof(key);
-  EXPECT_CKR_OK(g_fns->C_Decrypt(session_, data, data_len, key, &key_out_len));
+ObjectAttributes UnwrapAttributes(CK_KEY_TYPE* type) {
+  ObjectAttributes attrs;
+  static CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
+  attrs.push_back({CKA_CLASS, &key_class, sizeof(key_class)});
+  attrs.push_back({CKA_KEY_TYPE, type, sizeof(*type)});
+  attrs.push_back({CKA_TOKEN, &g_ck_false, sizeof(g_ck_false)});
+  attrs.push_back({CKA_PRIVATE, &g_ck_false, sizeof(g_ck_false)});
+  attrs.push_back({CKA_SENSITIVE, &g_ck_false, sizeof(g_ck_false)});
+  attrs.push_back({CKA_EXTRACTABLE, &g_ck_true, sizeof(g_ck_true)});
+  return attrs;
+}
 
-  CK_BYTE k1_value[2048];
-  CK_ATTRIBUTE get_attr = {CKA_VALUE, k1_value, sizeof(k1_value)};
-  EXPECT_CKR_OK(g_fns->C_GetAttributeValue(session_, k1.handle(), &get_attr, 1));
-  CK_ULONG k1_len = get_attr.ulValueLen;
+}  // namespace
 
-  EXPECT_EQ(k1_len, key_out_len);
-  EXPECT_EQ(hex_data(k1_value, k1_len), hex_data(key, key_out_len));
+TEST_F(ROUserSessionTest, WrapUnwrap) {
+  LOAD_WRAPPING_PROFILES(profiles, CKF_WRAP | CKF_UNWRAP);
+  for (const WrappingProfile& profile : profiles) {
+    SCOPED_TRACE(profile.name);
+    cout << "Wrapping profile: " << profile.name << endl;
+    ObjectAttributes target_attrs;
+    SecretKey target(session_, target_attrs, profile.generation, profile.key_length);
+    ObjectAttributes wrapping_attrs;
+    wrapping_attrs.push_back(CKA_WRAP);
+    wrapping_attrs.push_back(CKA_UNWRAP);
+    if (profile.flags & CKF_DECRYPT) wrapping_attrs.push_back(CKA_DECRYPT);
+    SecretKey wrapping(session_, wrapping_attrs, profile.generation, profile.key_length);
+    ASSERT_TRUE(target.valid());
+    ASSERT_TRUE(wrapping.valid());
 
-  // Unwrap to generate a key object with the same value.
-  CK_OBJECT_HANDLE k3;
-  CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
-  CK_KEY_TYPE key_type = CKK_DES;
-  CK_ATTRIBUTE k3_attrs[] = {
-    {CKA_LABEL, (CK_VOID_PTR)g_label, g_label_len},
-    {CKA_CLASS, &key_class, sizeof(key_class)},
-    {CKA_KEY_TYPE, (CK_VOID_PTR)&key_type, sizeof(key_type)},
-    {CKA_ENCRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
-    {CKA_DECRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
-  };
-  EXPECT_CKR_OK(g_fns->C_UnwrapKey(session_, &wrap_mechanism, k2.handle(), data, data_len, k3_attrs, 5, &k3));
+    CK_BYTE iv[16] = {};
+    CK_MECHANISM mechanism = profile.parameters(iv);
+    CK_BYTE wrapped[4096];
+    CK_ULONG wrapped_len = sizeof(wrapped);
+    ASSERT_CKR_OK(g_fns->C_WrapKey(session_, &mechanism, wrapping.handle(),
+                                  target.handle(), wrapped, &wrapped_len));
+    CK_BYTE original[2048];
+    CK_ATTRIBUTE original_attr = {CKA_VALUE, original, sizeof(original)};
+    ASSERT_CKR_OK(g_fns->C_GetAttributeValue(session_, target.handle(), &original_attr, 1));
+    ASSERT_LE(original_attr.ulValueLen, sizeof(original));
 
-  CK_BYTE k3_value[2048];
-  CK_ATTRIBUTE k3_get_attr = {CKA_VALUE, k3_value, sizeof(k3_value)};
-  EXPECT_CKR_OK(g_fns->C_GetAttributeValue(session_, k3, &k3_get_attr, 1));
-  CK_ULONG k3_len = get_attr.ulValueLen;
-  EXPECT_EQ(hex_data(k1_value, k1_len), hex_data(k3_value, k3_len));
+    if (profile.flags & CKF_DECRYPT) {
+      // Cross-check wrapping against decryption when both are advertised.
+      CK_BYTE clear[4096];
+      CK_ULONG clear_len = sizeof(clear);
+      mechanism = profile.parameters(iv);
+      ASSERT_CKR_OK(g_fns->C_DecryptInit(session_, &mechanism, wrapping.handle()));
+      ASSERT_CKR_OK(g_fns->C_Decrypt(session_, wrapped, wrapped_len, clear, &clear_len));
+      ASSERT_EQ(original_attr.ulValueLen, clear_len);
+      EXPECT_EQ(0, memcmp(original, clear, clear_len));
+    }
 
-  g_fns->C_DestroyObject(session_, k3);
+    CK_KEY_TYPE key_type = profile.key_type;
+    ObjectAttributes attrs = UnwrapAttributes(&key_type);
+    UnwrappedObject unwrapped(session_);
+    mechanism = profile.parameters(iv);
+    ASSERT_CKR_OK(g_fns->C_UnwrapKey(session_, &mechanism, wrapping.handle(), wrapped,
+                                    wrapped_len, attrs.data(), attrs.size(), &unwrapped.handle));
+    CK_BYTE recovered[2048];
+    CK_ATTRIBUTE recovered_attr = {CKA_VALUE, recovered, sizeof(recovered)};
+    ASSERT_CKR_OK(g_fns->C_GetAttributeValue(session_, unwrapped.handle, &recovered_attr, 1));
+    ASSERT_EQ(original_attr.ulValueLen, recovered_attr.ulValueLen);
+    EXPECT_EQ(0, memcmp(original, recovered, recovered_attr.ulValueLen));
+  }
 }
 
 TEST_F(ROUserSessionTest, WrapInvalid) {
-  REQUIRE_MECHANISM(CKM_DES_KEY_GEN, CKF_GENERATE);
-  REQUIRE_MECHANISM(CKM_DES_ECB, CKF_WRAP | CKF_UNWRAP | CKF_DECRYPT);
-  ObjectAttributes k1_attrs = ObjectAttributes();
-  CK_ATTRIBUTE insensitive_attr = {CKA_SENSITIVE, &g_ck_false, sizeof(g_ck_false)};
-  k1_attrs.push_back(insensitive_attr);
-  SecretKey k1(session_, k1_attrs);
-
-  vector<CK_ATTRIBUTE_TYPE> k2_attrs = {CKA_WRAP, CKA_UNWRAP, CKA_DECRYPT};
-  SecretKey k2(session_, k2_attrs);
-
-  // Use k2 to wrap k1.
-  CK_MECHANISM wrap_mechanism = {CKM_DES_ECB, NULL_PTR, 0};
-  CK_BYTE data[4096];
-  CK_ULONG data_len = sizeof(data);
-
-  CK_RV rv = g_fns->C_WrapKey(session_, &wrap_mechanism, k2.handle(), k1.handle(), data, &data_len);
-  if (rv == CKR_FUNCTION_NOT_SUPPORTED) {
-    TEST_SKIPPED("Key wrapping not supported");
-    return;
+  LOAD_WRAPPING_PROFILES(profiles, CKF_WRAP);
+  for (const WrappingProfile& profile : profiles) {
+    SCOPED_TRACE(profile.name);
+    cout << "Wrapping profile: " << profile.name << endl;
+    ObjectAttributes target_attrs;
+    SecretKey target(session_, target_attrs, profile.generation, profile.key_length);
+    ObjectAttributes wrapping_attrs;
+    wrapping_attrs.push_back(CKA_WRAP);
+    SecretKey wrapping(session_, wrapping_attrs, profile.generation, profile.key_length);
+    ASSERT_TRUE(target.valid());
+    ASSERT_TRUE(wrapping.valid());
+    CK_BYTE iv[16] = {};
+    CK_MECHANISM mechanism = profile.parameters(iv);
+    CK_BYTE data[4096];
+    CK_ULONG data_len = sizeof(data);
+    ASSERT_CKR_OK(g_fns->C_WrapKey(session_, &mechanism, wrapping.handle(),
+                                  target.handle(), data, &data_len));
+    data_len = sizeof(data);
+    EXPECT_CKR(CKR_SESSION_HANDLE_INVALID,
+               g_fns->C_WrapKey(INVALID_SESSION_HANDLE, &mechanism, wrapping.handle(), target.handle(), data, &data_len));
+    CK_RV rv = g_fns->C_WrapKey(session_, NULL_PTR, wrapping.handle(), target.handle(), data, &data_len);
+    EXPECT_TRUE(rv == CKR_ARGUMENTS_BAD || rv == CKR_MECHANISM_INVALID) << CK_RV_(rv);
+    EXPECT_CKR(CKR_WRAPPING_KEY_HANDLE_INVALID,
+               g_fns->C_WrapKey(session_, &mechanism, INVALID_OBJECT_HANDLE, target.handle(), data, &data_len));
+    EXPECT_CKR(CKR_KEY_HANDLE_INVALID,
+               g_fns->C_WrapKey(session_, &mechanism, wrapping.handle(), INVALID_OBJECT_HANDLE, data, &data_len));
+    EXPECT_CKR(CKR_ARGUMENTS_BAD,
+               g_fns->C_WrapKey(session_, &mechanism, wrapping.handle(), target.handle(), data, NULL_PTR));
+    CK_ULONG required = 0;
+    ASSERT_CKR_OK(g_fns->C_WrapKey(session_, &mechanism, wrapping.handle(), target.handle(), NULL_PTR, &required));
+    ASSERT_GT(required, 1UL);
+    data_len = 1;
+    EXPECT_CKR(CKR_BUFFER_TOO_SMALL,
+               g_fns->C_WrapKey(session_, &mechanism, wrapping.handle(), target.handle(), data, &data_len));
   }
-  EXPECT_CKR_OK(rv);
-
-  data_len = sizeof(data);
-  EXPECT_CKR(CKR_SESSION_HANDLE_INVALID,
-             g_fns->C_WrapKey(INVALID_SESSION_HANDLE, &wrap_mechanism, k2.handle(), k1.handle(), data, &data_len));
-  rv = g_fns->C_WrapKey(session_, NULL_PTR, k2.handle(), k1.handle(), data, &data_len);
-  EXPECT_TRUE(rv == CKR_ARGUMENTS_BAD || rv == CKR_MECHANISM_INVALID) << " rv=" << CK_RV_(rv);
-  EXPECT_CKR(CKR_WRAPPING_KEY_HANDLE_INVALID,
-             g_fns->C_WrapKey(session_, &wrap_mechanism, INVALID_OBJECT_HANDLE, k1.handle(), data, &data_len));
-  EXPECT_CKR(CKR_KEY_HANDLE_INVALID,
-             g_fns->C_WrapKey(session_, &wrap_mechanism, k2.handle(), INVALID_OBJECT_HANDLE, data, &data_len));
-  EXPECT_CKR(CKR_ARGUMENTS_BAD,
-             g_fns->C_WrapKey(session_, &wrap_mechanism, k2.handle(), k1.handle(), data, NULL_PTR));
-
-  // Too-small output cases.
-  EXPECT_CKR_OK(g_fns->C_WrapKey(session_, &wrap_mechanism, k2.handle(), k1.handle(), NULL_PTR, &data_len));
-  data_len = 1;
-  EXPECT_CKR(CKR_BUFFER_TOO_SMALL,
-             g_fns->C_WrapKey(session_, &wrap_mechanism, k2.handle(), k1.handle(), data, &data_len));
 }
 
 TEST_F(ROUserSessionTest, UnwrapInvalid) {
-  REQUIRE_MECHANISM(CKM_DES_KEY_GEN, CKF_GENERATE);
-  REQUIRE_MECHANISM(CKM_DES_ECB, CKF_WRAP | CKF_UNWRAP | CKF_DECRYPT);
-  ObjectAttributes k1_attrs = ObjectAttributes();
-  CK_ATTRIBUTE insensitive_attr = {CKA_SENSITIVE, &g_ck_false, sizeof(g_ck_false)};
-  k1_attrs.push_back(insensitive_attr);
-  SecretKey k1(session_, k1_attrs);
-
-  vector<CK_ATTRIBUTE_TYPE> k2_attrs = {CKA_WRAP, CKA_UNWRAP, CKA_DECRYPT};
-  SecretKey k2(session_, k2_attrs);
-
-  // Use k2 to wrap k1.
-  CK_MECHANISM wrap_mechanism = {CKM_DES_ECB, NULL_PTR, 0};
-  CK_BYTE data[4096];
-  CK_ULONG data_len = sizeof(data);
-
-  CK_RV rv = g_fns->C_WrapKey(session_, &wrap_mechanism, k2.handle(), k1.handle(), data, &data_len);
-  if (rv == CKR_FUNCTION_NOT_SUPPORTED) {
-    // Assume implementation is symmetric w.r.t. Wrap/Unwrap.
-    TEST_SKIPPED("Key wrapping not supported");
-    return;
+  LOAD_WRAPPING_PROFILES(profiles, CKF_WRAP | CKF_UNWRAP);
+  for (const WrappingProfile& profile : profiles) {
+    SCOPED_TRACE(profile.name);
+    cout << "Wrapping profile: " << profile.name << endl;
+    ObjectAttributes target_attrs;
+    SecretKey target(session_, target_attrs, profile.generation, profile.key_length);
+    ObjectAttributes wrapping_attrs;
+    wrapping_attrs.push_back(CKA_WRAP);
+    wrapping_attrs.push_back(CKA_UNWRAP);
+    SecretKey wrapping(session_, wrapping_attrs, profile.generation, profile.key_length);
+    ASSERT_TRUE(target.valid());
+    ASSERT_TRUE(wrapping.valid());
+    CK_BYTE iv[16] = {};
+    CK_MECHANISM mechanism = profile.parameters(iv);
+    CK_BYTE data[4096];
+    CK_ULONG data_len = sizeof(data);
+    ASSERT_CKR_OK(g_fns->C_WrapKey(session_, &mechanism, wrapping.handle(),
+                                  target.handle(), data, &data_len));
+    CK_KEY_TYPE key_type = profile.key_type;
+    ObjectAttributes attrs = UnwrapAttributes(&key_type);
+    UnwrappedObject result(session_);
+    EXPECT_CKR(CKR_SESSION_HANDLE_INVALID,
+               g_fns->C_UnwrapKey(INVALID_SESSION_HANDLE, &mechanism, wrapping.handle(), data, data_len, attrs.data(), attrs.size(), &result.handle));
+    CK_RV rv = g_fns->C_UnwrapKey(session_, NULL_PTR, wrapping.handle(), data, data_len, attrs.data(), attrs.size(), &result.handle);
+    EXPECT_TRUE(rv == CKR_ARGUMENTS_BAD || rv == CKR_MECHANISM_INVALID) << CK_RV_(rv);
+    EXPECT_CKR(CKR_UNWRAPPING_KEY_HANDLE_INVALID,
+               g_fns->C_UnwrapKey(session_, &mechanism, 0, data, data_len, attrs.data(), attrs.size(), &result.handle));
+    EXPECT_CKR(CKR_ARGUMENTS_BAD,
+               g_fns->C_UnwrapKey(session_, &mechanism, wrapping.handle(), NULL_PTR, data_len, attrs.data(), attrs.size(), &result.handle));
+    EXPECT_CKR(CKR_ARGUMENTS_BAD,
+               g_fns->C_UnwrapKey(session_, &mechanism, wrapping.handle(), data, data_len, NULL_PTR, attrs.size(), &result.handle));
+    EXPECT_CKR(CKR_ARGUMENTS_BAD,
+               g_fns->C_UnwrapKey(session_, &mechanism, wrapping.handle(), data, data_len, attrs.data(), attrs.size(), NULL_PTR));
+    EXPECT_EQ(0UL, result.handle);
   }
-  EXPECT_CKR_OK(rv);
-
-  CK_OBJECT_HANDLE k3 = 0;
-  CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
-  CK_KEY_TYPE key_type = CKK_DES;
-  CK_ATTRIBUTE k3_attrs[] = {
-    {CKA_LABEL, (CK_VOID_PTR)g_label, g_label_len},
-    {CKA_CLASS, &key_class, sizeof(key_class)},
-    {CKA_KEY_TYPE, (CK_VOID_PTR)&key_type, sizeof(key_type)},
-    {CKA_ENCRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
-    {CKA_DECRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
-  };
-
-  EXPECT_CKR(CKR_SESSION_HANDLE_INVALID,
-             g_fns->C_UnwrapKey(INVALID_SESSION_HANDLE, &wrap_mechanism, k2.handle(), data, data_len, k3_attrs, 5, &k3));
-  rv = g_fns->C_UnwrapKey(session_, NULL_PTR, k2.handle(), data, data_len, k3_attrs, 5, &k3);
-  EXPECT_TRUE(rv == CKR_ARGUMENTS_BAD || rv == CKR_MECHANISM_INVALID) << " rv=" << CK_RV_(rv);
-  EXPECT_CKR(CKR_WRAPPING_KEY_HANDLE_INVALID,
-             g_fns->C_UnwrapKey(session_, &wrap_mechanism, NULL_PTR, data, data_len, k3_attrs, 5, &k3));
-  EXPECT_CKR(CKR_ARGUMENTS_BAD,
-             g_fns->C_UnwrapKey(session_, &wrap_mechanism, k2.handle(), NULL_PTR, data_len, k3_attrs, 5, &k3));
-  EXPECT_CKR(CKR_ARGUMENTS_BAD,
-             g_fns->C_UnwrapKey(session_, &wrap_mechanism, k2.handle(), data, data_len, NULL_PTR, 5, &k3));
-  EXPECT_CKR(CKR_ARGUMENTS_BAD,
-             g_fns->C_UnwrapKey(session_, &wrap_mechanism, k2.handle(), data, data_len, k3_attrs, 5, NULL_PTR));
-
-  g_fns->C_DestroyObject(session_, k3);  // In case of accidental creation
 }
 
 }  // namespace test
