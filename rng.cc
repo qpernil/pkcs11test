@@ -38,12 +38,12 @@ TEST_F(ReadOnlySessionTest, SeedRandom) {
 
 TEST(RNG, SeedRandomNoInit) {
   CK_RV rv = g_fns->C_SeedRandom(INVALID_SESSION_HANDLE, seed, sizeof(seed));
-  if (g_token_flags & CKF_RNG) {
-    EXPECT_TRUE(rv == CKR_CRYPTOKI_NOT_INITIALIZED ||
-      rv == CKR_RANDOM_SEED_NOT_SUPPORTED) << " rv=" << CK_RV_(rv);
-  } else {
-    EXPECT_TRUE(rv == CKR_RANDOM_NO_RNG) << " rv=" << CK_RV_(rv);
+  if (rv == CKR_FUNCTION_NOT_SUPPORTED) {
+    TEST_SKIPPED("C_SeedRandom is an unsupported function stub");
+    return;
   }
+  // Initialization validation is independent of a token's RNG capabilities.
+  EXPECT_CKR(CKR_CRYPTOKI_NOT_INITIALIZED, rv);
 }
 
 TEST_F(ReadOnlySessionTest, SeedRandomBadArguments) {
@@ -58,12 +58,12 @@ TEST_F(ReadOnlySessionTest, SeedRandomBadArguments) {
 
 TEST_F(PKCS11Test, SeedRandomNoSession) {
   CK_RV rv = g_fns->C_SeedRandom(INVALID_SESSION_HANDLE, seed, sizeof(seed));
-  if (g_token_flags & CKF_RNG) {
-    EXPECT_TRUE(rv == CKR_SESSION_HANDLE_INVALID ||
-      rv == CKR_RANDOM_SEED_NOT_SUPPORTED) << " rv=" << CK_RV_(rv);
-  } else {
-    EXPECT_TRUE(rv == CKR_RANDOM_NO_RNG) << " rv=" << CK_RV_(rv);
+  if (rv == CKR_FUNCTION_NOT_SUPPORTED) {
+    TEST_SKIPPED("C_SeedRandom is an unsupported function stub");
+    return;
   }
+  // Session errors take precedence over RNG capability errors (5.1.7).
+  EXPECT_CKR(CKR_SESSION_HANDLE_INVALID, rv);
 }
 
 void GenerateRandom(CK_SESSION_HANDLE session) {

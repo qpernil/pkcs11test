@@ -128,7 +128,10 @@ Token initialization verifies the PIN supplied to `C_InitPIN`. The wrong-SO-PIN
 fixture preserves the supplied PIN's length and initial character family to
 avoid conflating authentication with PIN format validation. Retry-warning flags
 are optional; incorrect-PIN rejection and recovery with the correct PIN remain
-required.
+required. RNG-seeding tests keep initialization and invalid-session checks
+independent of token RNG flags; a genuine unsupported function stub is an
+explicit skip. The bad-argument case permits the independently applicable
+seeding-capability error.
 
 Size-query tests check that input is not consumed: encryption can continue with
 Update/Final and recover the original plaintext, and digest Final returns the
