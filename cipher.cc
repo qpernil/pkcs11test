@@ -57,38 +57,12 @@ map<string, vector<TestData> > kTestVectors = {
 
 }  // namespace
 
-// XXX: Cannot skip from SetUp(); consider GTEST_SKIP when on gtest>=1.10.0.
-#define SKIP_IF_UNIMPLEMENTED(info)                         \
-  do {                                                      \
-    CK_MECHANISM_TYPE missing;                              \
-    if (!has_cipher(info, &missing)) {                      \
-      stringstream ss;                                      \
-      ss << mechanism_type_name(missing) << " unavailable"; \
-      TEST_SKIPPED(ss.str());                               \
-      return;                                               \
-    }                                                       \
+// Generation belongs to the generated-key fixtures, not import vectors.
+#define SKIP_IF_UNIMPLEMENTED(cipher_info) \
+  do { \
+    REQUIRE_MECHANISM((cipher_info).keygen, CKF_GENERATE); \
+    REQUIRE_MECHANISM((cipher_info).mode, 0); \
   } while (0)
-
-static bool has_cipher(const CipherInfo &info, CK_MECHANISM_TYPE *missing) {
-  CK_ULONG count = 0;
-  CK_RV rv;
-
-  EXPECT_CKR_OK((rv = g_fns->C_GetMechanismList(g_slot_id, NULL_PTR, &count)));
-  if (rv != CKR_OK) return false;
-
-  std::vector<CK_MECHANISM_TYPE> list(count);
-  EXPECT_CKR_OK((rv = g_fns->C_GetMechanismList(g_slot_id, list.data(), &count)));
-  if (rv != CKR_OK) return false;
-
-  CK_MECHANISM_TYPE reqd[] = { info.keygen, info.mode };
-  for (auto needle : reqd) {
-    if (!std::count(list.begin(), list.end(), needle)) {
-      if (missing) *missing = needle;
-      return false;
-    }
-  }
-  return true;
-}
 
 TEST_P(SecretKeyTest, EncryptDecrypt) {
   SKIP_IF_UNIMPLEMENTED(info_);
@@ -721,53 +695,67 @@ TEST_F(ReadOnlySessionTest, CreateSecretKeyAttributes) {
   ASSERT_CKR_OK(g_fns->C_DestroyObject(session_, key_object));
 }
 
-TEST_F(ReadOnlySessionTest, SecretKeyTestVectors) {
-  for (const auto& kv : kTestVectors) {
-    vector<TestData> testcases = kTestVectors[kv.first];
-    CipherInfo info = kCipherInfo[kv.first];
-    if (!has_cipher(info, NULL))
-      continue;  /* skip this test */
-    for (const TestData& testcase : kv.second) {
-      if (g_verbose) {
-        cout  << "KEY: " << testcase.key << endl;
-        if (info.has_iv) cout << "IV:  " << testcase.iv << endl;
-        cout  << "PT:  " << testcase.plaintext << endl;
-        cout  << "CT:  " << testcase.ciphertext << endl;
-      }
-      string key = hex_decode(testcase.key);
-      CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
-      CK_KEY_TYPE key_type = info.keytype;
-      vector<CK_ATTRIBUTE> attrs = {
-        {CKA_PRIVATE, (CK_VOID_PTR)&g_ck_false, sizeof(CK_BBOOL)},
-        {CKA_LABEL, (CK_VOID_PTR)g_label, g_label_len},
-        {CKA_ENCRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
-        {CKA_DECRYPT, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
-        {CKA_CLASS, &key_class, sizeof(key_class)},
-        {CKA_KEY_TYPE, (CK_VOID_PTR)&key_type, sizeof(key_type)},
-        {CKA_VALUE, (CK_VOID_PTR)key.data(), (CK_ULONG)key.size()},
-      };
-      CK_OBJECT_HANDLE key_object;
-      ASSERT_CKR_OK(g_fns->C_CreateObject(session_, attrs.data(), attrs.size(), &key_object));
+struct CipherVector {
+  string algorithm;
+  TestData data;
+  string name;
+};
 
-      string iv = hex_decode(testcase.iv);
-      CK_MECHANISM mechanism = {info.mode,
-                                (info.has_iv ? (CK_BYTE_PTR)iv.data() : NULL_PTR),
-                                (info.has_iv ? (CK_ULONG)info.blocksize : 0)};
-      ASSERT_CKR_OK(g_fns->C_EncryptInit(session_, &mechanism, key_object));
-      string plaintext = hex_decode(testcase.plaintext);
-      CK_BYTE ciphertext[1024];
-      CK_ULONG ciphertext_len = sizeof(ciphertext);
-      ASSERT_CKR_OK(g_fns->C_Encrypt(session_,
-                                     (CK_BYTE_PTR)plaintext.data(), plaintext.size(),
-                                     ciphertext, &ciphertext_len));
-      string expected_ciphertext = hex_decode(testcase.ciphertext);
-      EXPECT_EQ(expected_ciphertext.size(), ciphertext_len);
-      EXPECT_EQ(0, memcmp(expected_ciphertext.data(),
-                          ciphertext,
-                          expected_ciphertext.size()));
-    }
+static vector<CipherVector> CipherVectors() {
+  vector<CipherVector> result;
+  for (const auto& entry : kTestVectors) {
+    string name = entry.first;
+    for (char& c : name) if (c == '-') c = '_';
+    unsigned index = 0;
+    for (const auto& data : entry.second)
+      result.push_back({entry.first, data, "Cipher_" + name + "_Vector" + to_string(index++)});
   }
+  return result;
 }
+
+class CipherVectorTest : public ReadOnlySessionTest,
+                         public ::testing::WithParamInterface<CipherVector> {
+ protected:
+  CK_OBJECT_HANDLE key_ = CK_INVALID_HANDLE;
+  ~CipherVectorTest() {
+    if (key_ != CK_INVALID_HANDLE) EXPECT_CKR_OK(g_fns->C_DestroyObject(session_, key_));
+  }
+};
+
+TEST_P(CipherVectorTest, Encrypt) {
+  const CipherVector& input = GetParam();
+  CipherInfo cipher_info = kCipherInfo[input.algorithm];
+  // These fixtures import a known key. Key generation and decryption are
+  // not prerequisites for checking its published encryption vector.
+  REQUIRE_MECHANISM(cipher_info.mode, CKF_ENCRYPT);
+  string key = hex_decode(input.data.key);
+  CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
+  CK_KEY_TYPE key_type = cipher_info.keytype;
+  vector<CK_ATTRIBUTE> attrs = {
+    {CKA_TOKEN, &g_ck_false, sizeof(g_ck_false)},
+    {CKA_PRIVATE, &g_ck_false, sizeof(g_ck_false)},
+    {CKA_ENCRYPT, &g_ck_true, sizeof(g_ck_true)},
+    {CKA_CLASS, &key_class, sizeof(key_class)},
+    {CKA_KEY_TYPE, &key_type, sizeof(key_type)},
+    {CKA_VALUE, (CK_VOID_PTR)key.data(), (CK_ULONG)key.size()},
+  };
+  ASSERT_CKR_OK(g_fns->C_CreateObject(session_, attrs.data(), attrs.size(), &key_));
+  string iv = hex_decode(input.data.iv);
+  CK_MECHANISM mechanism = {cipher_info.mode,
+    cipher_info.has_iv ? (CK_BYTE_PTR)iv.data() : NULL_PTR,
+    cipher_info.has_iv ? (CK_ULONG)iv.size() : 0};
+  ASSERT_CKR_OK(g_fns->C_EncryptInit(session_, &mechanism, key_));
+  string plaintext = hex_decode(input.data.plaintext);
+  CK_BYTE ciphertext[1024];
+  CK_ULONG ciphertext_len = sizeof(ciphertext);
+  ASSERT_CKR_OK(g_fns->C_Encrypt(session_, (CK_BYTE_PTR)plaintext.data(), plaintext.size(), ciphertext, &ciphertext_len));
+  string expected = hex_decode(input.data.ciphertext);
+  ASSERT_EQ(expected.size(), ciphertext_len);
+  EXPECT_EQ(0, memcmp(expected.data(), ciphertext, expected.size()));
+}
+
+INSTANTIATE_TEST_SUITE_P(CipherVectors, CipherVectorTest, ::testing::ValuesIn(CipherVectors()),
+  [](const ::testing::TestParamInfo<CipherVector>& info) { return info.param.name; });
 
 }  // namespace test
 }  // namespace pkcs11

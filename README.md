@@ -74,7 +74,9 @@ Fixtures use standard PKCS #11 behavior, explicit key policies, and advertised
 capabilities. Missing mechanisms or required operation flags produce a named
 skip; other discovery errors remain failures. General object, digest-key, and
 attribute-policy tests use AES-128 or generic secrets. Algorithm-specific cipher
-cases retain their algorithms and report SKIPPED when unavailable. IV checks
+cases retain their algorithms and report SKIPPED when unavailable. Named
+cipher-vector cases import keys and require only the advertised encryption
+operation, independently of key-generation support. IV checks
 report SKIPPED for ECB, where no IV is used. RSA fixtures use
 1024- or 2048-bit keys; a token's key-size and security policies can further
 restrict which fixtures it supports.
