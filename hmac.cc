@@ -61,17 +61,23 @@ map<string, vector<TestData> > kTestVectors = {
    {{"0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b", "4869205468657265",
      "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"},
     {"4a656665", "7768617420646f2079612077616e7420666f72206e6f7468696e673f",
-     "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"}, }},
+     "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"},
+    {"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "54657374205573696e67204c6172676572205468616e20426c6f636b2d53697a65204b6579202d2048617368204b6579204669727374",
+     "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54"}, }},
   {"SHA384-HMAC",
    {{"0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b", "4869205468657265",
      "afd03944d84895626b0825f4ab46907f15f9dadbe4101ec682aa034c7cebc59cfaea9ea9076ede7f4af152e8b2fa9cb6"},
     {"4a656665", "7768617420646f2079612077616e7420666f72206e6f7468696e673f",
-     "af45d2e376484031617f78d2b58a6b1b9c7ef464f5a01b47e42ec3736322445e8e2240ca5e69e2c78b3239ecfab21649"}, }},
+     "af45d2e376484031617f78d2b58a6b1b9c7ef464f5a01b47e42ec3736322445e8e2240ca5e69e2c78b3239ecfab21649"},
+    {"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "54657374205573696e67204c6172676572205468616e20426c6f636b2d53697a65204b6579202d2048617368204b6579204669727374",
+     "4ece084485813e9088d2c63a041bc5b44f9ef1012a2b588f3cd11f05033ac4c60c2ef6ab4030fe8296248df163f44952"}, }},
   {"SHA512-HMAC",
    {{"0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b", "4869205468657265",
      "87aa7cdea5ef619d4ff0b4241a1d6cb02379f4e2ce4ec2787ad0b30545e17cdedaa833b7d6b8a702038b274eaea3f4e4be9d914eeb61f1702e696c203a126854"},
     {"4a656665", "7768617420646f2079612077616e7420666f72206e6f7468696e673f",
-     "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737"}, }},
+     "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737"},
+    {"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "54657374205573696e67204c6172676572205468616e20426c6f636b2d53697a65204b6579202d2048617368204b6579204669727374",
+     "80b24263c7c1a3ebb71493c1dd7be8b49b46d1f41b4aeec1121b013783f8f3526b56d037e05f2598bd0fd2215d6a1e5295e64f73f63f0aec8b915a985d786598"}, }},
 };
 
 }  // namespace
@@ -82,10 +88,10 @@ class HmacTest : public RWUserSessionTest,
   HmacTest()
     : attrs_({CKA_SIGN, CKA_VERIFY}),
       info_(kHmacInfo[GetParam()]),
-      keylen_(16 + (std::rand() % (64 - 16))),
+      keylen_(64 + (std::rand() % 64)),
       key_data_(randmalloc(keylen_)),
       key_(INVALID_OBJECT_HANDLE),
-      datalen_(1 + std::rand() % 1024),
+      datalen_(std::rand() % 1024),
       data_(randmalloc(datalen_)),
       mechanism_({info_.hmac, NULL_PTR, 0}) {
     // Implementations generally only support HMAC with a GENERIC_SECRET key.
@@ -118,13 +124,14 @@ class HmacTest : public RWUserSessionTest,
   CK_KEY_TYPE key_type_;
 
   void Create() {
+    CK_KEY_TYPE type = CKK_GENERIC_SECRET;
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
     vector<CK_ATTRIBUTE> attrs = {
       {CKA_LABEL, (CK_VOID_PTR)g_label, g_label_len},
       {CKA_SIGN, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
       {CKA_VERIFY, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
       {CKA_CLASS, &key_class, sizeof(key_class)},
-      {CKA_KEY_TYPE, (CK_VOID_PTR)&key_type_, sizeof(key_type_)},
+      {CKA_KEY_TYPE, (CK_VOID_PTR)&type, sizeof(type)},
       {CKA_VALUE, (CK_VOID_PTR)key_data_.get(), (CK_ULONG)keylen_},
     };
     EXPECT_CKR_OK(g_fns->C_CreateObject(session_, attrs.data(), attrs.size(), &key_));
@@ -236,58 +243,99 @@ INSTANTIATE_TEST_SUITE_P(HMACs, HmacTest,
                                           "SHA384-HMAC",
                                           "SHA512-HMAC"));
 
-TEST_F(RWUserSessionTest, HmacTestVectors) {
-  for (const auto& kv : kTestVectors) {
-    vector<TestData> testcases = kTestVectors[kv.first];
-    HmacInfo info = kHmacInfo[kv.first];
-    for (const TestData& testcase : kv.second) {
-      string key = hex_decode(testcase.key);
-      // Preserve the published key bytes. Some tokens reject keys shorter
-      // than the digest output, as allowed by the mechanism's size policy.
-      bool short_key = testcase.key.size() < testcase.hash.size();
-      CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
-      CK_KEY_TYPE key_type = CKK_GENERIC_SECRET;
-      if(kv.first == "SHA1-HMAC") {
-        key_type = CKK_SHA_1_HMAC;
-      } else if(kv.first == "SHA256-HMAC") {
-        key_type = CKK_SHA256_HMAC;
-      } else if(kv.first == "SHA384-HMAC") {
-        key_type = CKK_SHA384_HMAC;
-      } else if(kv.first == "SHA512-HMAC") {
-        key_type = CKK_SHA512_HMAC;
+struct HmacInput {
+  string algorithm;
+  CK_KEY_TYPE type;
+  string key;
+  string data;
+  string expected;
+  string name;
+};
+
+static CK_KEY_TYPE HmacKeyType(const string& algorithm) {
+  if (algorithm == "SHA1-HMAC") return CKK_SHA_1_HMAC;
+  if (algorithm == "SHA256-HMAC") return CKK_SHA256_HMAC;
+  if (algorithm == "SHA384-HMAC") return CKK_SHA384_HMAC;
+  if (algorithm == "SHA512-HMAC") return CKK_SHA512_HMAC;
+  return CKK_GENERIC_SECRET;
+}
+
+static vector<HmacInput> HmacInputs() {
+  vector<HmacInput> result;
+  for (const auto& entry : kTestVectors) {
+    string algorithm_name = entry.first;
+    for (char& c : algorithm_name) if (c == '-') c = '_';
+    vector<CK_KEY_TYPE> types = {CKK_GENERIC_SECRET};
+    if (HmacKeyType(entry.first) != CKK_GENERIC_SECRET)
+      types.push_back(HmacKeyType(entry.first));
+    for (auto type : types) {
+      string prefix = algorithm_name + (type == CKK_GENERIC_SECRET ? "_Generic_" : "_Typed_");
+      unsigned index = 0;
+      for (const auto& vector : entry.second) {
+        result.push_back({entry.first, type, hex_decode(vector.key), hex_decode(vector.data),
+                          vector.hash, prefix + "Vector" + to_string(index++)});
       }
-      vector<CK_ATTRIBUTE> attrs = {
-        {CKA_LABEL, (CK_VOID_PTR)g_label, g_label_len},
-        {CKA_SIGN, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
-        {CKA_VERIFY, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
-        {CKA_CLASS, &key_class, sizeof(key_class)},
-        {CKA_KEY_TYPE, (CK_VOID_PTR)&key_type, sizeof(key_type)},
-        {CKA_VALUE, (CK_VOID_PTR)key.data(), (CK_ULONG)key.size()},
-      };
-      CK_OBJECT_HANDLE key_object;
-      CK_RV rv = g_fns->C_CreateObject(session_, attrs.data(), attrs.size(), &key_object);
-      ASSERT_CKR_OK(rv);
-
-      CK_MECHANISM mechanism = {info.hmac, NULL_PTR, 0};
-
-      rv = g_fns->C_SignInit(session_, &mechanism, key_object);
-      if (rv == CKR_MECHANISM_INVALID || (short_key && rv == CKR_KEY_SIZE_RANGE)) {
-        TEST_SKIPPED(std::string("HMAC vector unsupported: ") + kv.first);
-        EXPECT_CKR_OK(g_fns->C_DestroyObject(session_, key_object));
-        continue;
+      // Both sides of SHA-1/256 and SHA-384/512 block boundaries, plus short
+      // keys and RFC 4231's 131-byte key. Each empty-message case is explicit.
+      for (unsigned size : {4U, 16U, 63U, 64U, 65U, 127U, 128U, 129U, 131U}) {
+        for (unsigned data_size : {0U, 1024U}) {
+          result.push_back({entry.first, type, string(size, '\x5a'), string(data_size, '\xa5'), "",
+                            prefix + "Key" + to_string(size) + "_Data" + to_string(data_size)});
+        }
       }
-      ASSERT_CKR_OK(rv);
-
-      string data = hex_decode(testcase.data);
-      CK_BYTE output[1024];
-      CK_ULONG output_len = sizeof(output);
-      EXPECT_CKR_OK(g_fns->C_Sign(session_, (CK_BYTE_PTR)data.data(), data.size(), output, &output_len));
-      string output_hex = hex_data(output, output_len);
-      EXPECT_EQ(testcase.hash, output_hex);
-      EXPECT_CKR_OK(g_fns->C_DestroyObject(session_, key_object));
     }
   }
+  return result;
 }
+
+class HmacInputTest : public RWUserSessionTest,
+                      public ::testing::WithParamInterface<HmacInput> {
+ protected:
+  CK_OBJECT_HANDLE key_ = CK_INVALID_HANDLE;
+  ~HmacInputTest() {
+    if (key_ != CK_INVALID_HANDLE) EXPECT_CKR_OK(g_fns->C_DestroyObject(session_, key_));
+  }
+};
+
+TEST_P(HmacInputTest, SignVerify) {
+  const HmacInput& input = GetParam();
+  HmacInfo hmac_info = kHmacInfo[input.algorithm];
+  REQUIRE_MECHANISM(hmac_info.hmac, CKF_SIGN | CKF_VERIFY);
+  CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
+  CK_KEY_TYPE key_type = input.type;
+  vector<CK_ATTRIBUTE> attrs = {
+    {CKA_TOKEN, &g_ck_false, sizeof(g_ck_false)},
+    {CKA_PRIVATE, &g_ck_false, sizeof(g_ck_false)},
+    {CKA_SIGN, &g_ck_true, sizeof(g_ck_true)},
+    {CKA_VERIFY, &g_ck_true, sizeof(g_ck_true)},
+    {CKA_CLASS, &key_class, sizeof(key_class)},
+    {CKA_KEY_TYPE, &key_type, sizeof(key_type)},
+    {CKA_VALUE, (CK_VOID_PTR)input.key.data(), (CK_ULONG)input.key.size()},
+  };
+  ASSERT_CKR_OK(g_fns->C_CreateObject(session_, attrs.data(), attrs.size(), &key_));
+  CK_MECHANISM mechanism = {hmac_info.hmac, NULL_PTR, 0};
+  CK_RV rv = g_fns->C_SignInit(session_, &mechanism, key_);
+  // Short-key security policies may reject published vectors; preserve bytes
+  // and identify the exact skipped vector rather than altering it.
+  if (rv == CKR_KEY_SIZE_RANGE && input.key.size() < (size_t)hmac_info.mac_size) {
+    TEST_SKIPPED("HMAC short-key policy: " + input.name);
+    return;
+  }
+  ASSERT_CKR_OK(rv);
+  CK_BYTE output[1024];
+  CK_ULONG output_len = sizeof(output);
+  ASSERT_CKR_OK(g_fns->C_Sign(session_, (CK_BYTE_PTR)input.data.data(), input.data.size(), output, &output_len));
+  ASSERT_EQ(hmac_info.mac_size, output_len);
+  if (!input.expected.empty()) EXPECT_EQ(input.expected, hex_data(output, output_len));
+  ASSERT_CKR_OK(g_fns->C_VerifyInit(session_, &mechanism, key_));
+  EXPECT_CKR_OK(g_fns->C_Verify(session_, (CK_BYTE_PTR)input.data.data(), input.data.size(), output, output_len));
+  output[0] ^= 1;
+  ASSERT_CKR_OK(g_fns->C_VerifyInit(session_, &mechanism, key_));
+  EXPECT_CKR(CKR_SIGNATURE_INVALID, g_fns->C_Verify(session_, (CK_BYTE_PTR)input.data.data(), input.data.size(), output, output_len));
+}
+
+INSTANTIATE_TEST_SUITE_P(HmacInputs, HmacInputTest, ::testing::ValuesIn(HmacInputs()),
+  [](const ::testing::TestParamInfo<HmacInput>& info) { return info.param.name; });
 
 }  // namespace test
 }  // namespace pkcs11

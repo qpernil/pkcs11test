@@ -114,8 +114,10 @@ against the actual modulus size. HMAC generation supplies `CKA_VALUE_LEN`. Gener
 `CKK_GENERIC_SECRET`; separate typed-generation cases use the corresponding
 standard SHA key-generation mechanisms and verify the resulting key type.
 Secret-key import checks use a complete AES key, not an empty value. HMAC
-vectors preserve their published key bytes; unsupported short-key policies
-produce an explicit skip instead of silently modifying the vector.
+vectors include the original long-key cases and preserve their published key
+bytes. Named generic-secret and typed-key cases cover empty messages and
+keys on both sides of the 64- and 128-byte block boundaries. Unsupported
+short-key policies produce an explicit skip for the specific case.
 
 Token initialization verifies the PIN supplied to `C_InitPIN`. The wrong-SO-PIN
 fixture preserves the supplied PIN's length and initial character family to
