@@ -130,19 +130,20 @@ class HmacTest : public RWUserSessionTest,
     EXPECT_CKR_OK(g_fns->C_CreateObject(session_, attrs.data(), attrs.size(), &key_));
   }
 
-  void Generate() {
+  CK_RV Generate(CK_MECHANISM_TYPE generation = CKM_GENERIC_SECRET_KEY_GEN,
+                 CK_KEY_TYPE type = CKK_GENERIC_SECRET) {
     CK_ULONG key_length = keylen_;
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
-    CK_MECHANISM mech = {CKM_GENERIC_SECRET_KEY_GEN, NULL_PTR, 0};
+    CK_MECHANISM mech = {generation, NULL_PTR, 0};
     vector<CK_ATTRIBUTE> attrs = {
       {CKA_LABEL, (CK_VOID_PTR)g_label, g_label_len},
       {CKA_SIGN, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
       {CKA_VERIFY, (CK_VOID_PTR)&g_ck_true, sizeof(CK_BBOOL)},
       {CKA_CLASS, &key_class, sizeof(key_class)},
-      {CKA_KEY_TYPE, (CK_VOID_PTR)&key_type_, sizeof(key_type_)},
+      {CKA_KEY_TYPE, (CK_VOID_PTR)&type, sizeof(type)},
       {CKA_VALUE_LEN, &key_length, sizeof(key_length)},
     };
-    EXPECT_CKR_OK(g_fns->C_GenerateKey(session_, &mech, attrs.data(), attrs.size(), &key_));
+    return g_fns->C_GenerateKey(session_, &mech, attrs.data(), attrs.size(), &key_);
   }
 };
 
@@ -155,7 +156,9 @@ class HmacTest : public RWUserSessionTest,
     }
 
 TEST_P(HmacTest, GenerateSignVerify) {
-  Generate();
+  REQUIRE_MECHANISM(CKM_GENERIC_SECRET_KEY_GEN, CKF_GENERATE);
+  REQUIRE_MECHANISM(info_.hmac, CKF_SIGN | CKF_VERIFY);
+  ASSERT_CKR_OK(Generate());
   CK_RV rv = g_fns->C_SignInit(session_, &mechanism_, key_);
   SKIP_IF_UNIMPLEMENTED_RV(rv);
   ASSERT_CKR_OK(rv);
@@ -164,6 +167,33 @@ TEST_P(HmacTest, GenerateSignVerify) {
   EXPECT_CKR_OK(g_fns->C_Sign(session_, data_.get(), datalen_, output, &output_len));
   EXPECT_EQ(info_.mac_size, output_len);
 
+  ASSERT_CKR_OK(g_fns->C_VerifyInit(session_, &mechanism_, key_));
+  EXPECT_CKR_OK(g_fns->C_Verify(session_, data_.get(), datalen_, output, output_len));
+}
+
+TEST_P(HmacTest, GenerateTypedSignVerify) {
+  // Standard PKCS #11 3.0 identifiers, absent from the bundled 2.2 headers.
+  const map<string, CK_MECHANISM_TYPE> generation = {
+    {"SHA1-HMAC", 0x00004003UL}, {"SHA256-HMAC", 0x00004005UL},
+    {"SHA384-HMAC", 0x00004006UL}, {"SHA512-HMAC", 0x00004007UL},
+  };
+  auto found = generation.find(GetParam());
+  if (found == generation.end()) {
+    TEST_SKIPPED("No standard typed key generation fixture for this HMAC");
+    return;
+  }
+  REQUIRE_MECHANISM(found->second, CKF_GENERATE);
+  REQUIRE_MECHANISM(info_.hmac, CKF_SIGN | CKF_VERIFY);
+  ASSERT_CKR_OK(Generate(found->second, key_type_));
+  CK_KEY_TYPE actual_type = 0;
+  CK_ATTRIBUTE attr = {CKA_KEY_TYPE, &actual_type, sizeof(actual_type)};
+  ASSERT_CKR_OK(g_fns->C_GetAttributeValue(session_, key_, &attr, 1));
+  ASSERT_EQ(key_type_, actual_type);
+  ASSERT_CKR_OK(g_fns->C_SignInit(session_, &mechanism_, key_));
+  CK_BYTE output[1024];
+  CK_ULONG output_len = sizeof(output);
+  ASSERT_CKR_OK(g_fns->C_Sign(session_, data_.get(), datalen_, output, &output_len));
+  EXPECT_EQ(info_.mac_size, output_len);
   ASSERT_CKR_OK(g_fns->C_VerifyInit(session_, &mechanism_, key_));
   EXPECT_CKR_OK(g_fns->C_Verify(session_, data_.get(), datalen_, output, output_len));
 }

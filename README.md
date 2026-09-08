@@ -110,7 +110,9 @@ not bytes.
 
 `PublicExponent4Bytes` supplies complete boolean attributes and tests the
 unsigned big-endian value `00 01 00 01`. RSA encryption checks ciphertext length
-against the actual modulus size. HMAC generation supplies `CKA_VALUE_LEN`.
+against the actual modulus size. HMAC generation supplies `CKA_VALUE_LEN`. Generic generation requests
+`CKK_GENERIC_SECRET`; separate typed-generation cases use the corresponding
+standard SHA key-generation mechanisms and verify the resulting key type.
 Secret-key import checks use a complete AES key, not an empty value. HMAC
 vectors preserve their published key bytes; unsupported short-key policies
 produce an explicit skip instead of silently modifying the vector.
