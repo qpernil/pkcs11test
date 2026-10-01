@@ -183,10 +183,9 @@ TEST_P(HmacTest, GenerateSignVerify) {
 }
 
 TEST_P(HmacTest, GenerateTypedSignVerify) {
-  // Standard PKCS #11 3.0 identifiers, absent from the bundled 2.2 headers.
   const map<string, CK_MECHANISM_TYPE> generation = {
-    {"SHA1-HMAC", 0x00004003UL}, {"SHA256-HMAC", 0x00004005UL},
-    {"SHA384-HMAC", 0x00004006UL}, {"SHA512-HMAC", 0x00004007UL},
+    {"SHA1-HMAC", CKM_SHA_1_KEY_GEN}, {"SHA256-HMAC", CKM_SHA256_KEY_GEN},
+    {"SHA384-HMAC", CKM_SHA384_KEY_GEN}, {"SHA512-HMAC", CKM_SHA512_KEY_GEN},
   };
   auto found = generation.find(GetParam());
   if (found == generation.end()) {

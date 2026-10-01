@@ -48,6 +48,20 @@
 #endif
 #include <pkcs11.h>
 
+// PKCS #11 3.0 identifiers absent from the bundled 2.2 headers.
+#ifndef CKM_SHA_1_KEY_GEN
+#define CKM_SHA_1_KEY_GEN 0x00004003UL
+#endif
+#ifndef CKM_SHA256_KEY_GEN
+#define CKM_SHA256_KEY_GEN 0x00004005UL
+#endif
+#ifndef CKM_SHA384_KEY_GEN
+#define CKM_SHA384_KEY_GEN 0x00004006UL
+#endif
+#ifndef CKM_SHA512_KEY_GEN
+#define CKM_SHA512_KEY_GEN 0x00004007UL
+#endif
+
 #if defined(STRICT_P11)
 #  pragma pack(pop)
 #endif

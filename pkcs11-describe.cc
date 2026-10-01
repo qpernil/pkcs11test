@@ -282,6 +282,7 @@ string mechanism_type_name(CK_MECHANISM_TYPE val) {
     case CKM_MD5_HMAC: return "CKM_MD5_HMAC";
     case CKM_MD5_HMAC_GENERAL: return "CKM_MD5_HMAC_GENERAL";
     case CKM_SHA_1: return "CKM_SHA_1";
+    case CKM_SHA_1_KEY_GEN: return "CKM_SHA_1_KEY_GEN";
     case CKM_SHA_1_HMAC: return "CKM_SHA_1_HMAC";
     case CKM_SHA_1_HMAC_GENERAL: return "CKM_SHA_1_HMAC_GENERAL";
     case CKM_RIPEMD128: return "CKM_RIPEMD128";
@@ -291,15 +292,18 @@ string mechanism_type_name(CK_MECHANISM_TYPE val) {
     case CKM_RIPEMD160_HMAC: return "CKM_RIPEMD160_HMAC";
     case CKM_RIPEMD160_HMAC_GENERAL: return "CKM_RIPEMD160_HMAC_GENERAL";
     case CKM_SHA256: return "CKM_SHA256";
+    case CKM_SHA256_KEY_GEN: return "CKM_SHA256_KEY_GEN";
     case CKM_SHA256_HMAC: return "CKM_SHA256_HMAC";
     case CKM_SHA256_HMAC_GENERAL: return "CKM_SHA256_HMAC_GENERAL";
     case CKM_SHA224: return "CKM_SHA224";
     case CKM_SHA224_HMAC: return "CKM_SHA224_HMAC";
     case CKM_SHA224_HMAC_GENERAL: return "CKM_SHA224_HMAC_GENERAL";
     case CKM_SHA384: return "CKM_SHA384";
+    case CKM_SHA384_KEY_GEN: return "CKM_SHA384_KEY_GEN";
     case CKM_SHA384_HMAC: return "CKM_SHA384_HMAC";
     case CKM_SHA384_HMAC_GENERAL: return "CKM_SHA384_HMAC_GENERAL";
     case CKM_SHA512: return "CKM_SHA512";
+    case CKM_SHA512_KEY_GEN: return "CKM_SHA512_KEY_GEN";
     case CKM_SHA512_HMAC: return "CKM_SHA512_HMAC";
     case CKM_SHA512_HMAC_GENERAL: return "CKM_SHA512_HMAC_GENERAL";
     case CKM_SECURID_KEY_GEN: return "CKM_SECURID_KEY_GEN";
