@@ -208,6 +208,27 @@ TEST_P(HmacTest, GenerateTypedSignVerify) {
   EXPECT_CKR_OK(g_fns->C_Verify(session_, data_.get(), datalen_, output, output_len));
 }
 
+TEST_P(HmacTest, GenerateGenericTypedSignVerify) {
+  if (GetParam() == "MD5-HMAC") {
+    TEST_SKIPPED("No standard typed key fixture for this HMAC");
+    return;
+  }
+  REQUIRE_MECHANISM(CKM_GENERIC_SECRET_KEY_GEN, CKF_GENERATE);
+  REQUIRE_MECHANISM(info_.hmac, CKF_SIGN | CKF_VERIFY);
+  ASSERT_CKR_OK(Generate(CKM_GENERIC_SECRET_KEY_GEN, key_type_));
+  CK_KEY_TYPE actual_type = 0;
+  CK_ATTRIBUTE attr = {CKA_KEY_TYPE, &actual_type, sizeof(actual_type)};
+  ASSERT_CKR_OK(g_fns->C_GetAttributeValue(session_, key_, &attr, 1));
+  ASSERT_EQ(key_type_, actual_type);
+  ASSERT_CKR_OK(g_fns->C_SignInit(session_, &mechanism_, key_));
+  CK_BYTE output[1024];
+  CK_ULONG output_len = sizeof(output);
+  ASSERT_CKR_OK(g_fns->C_Sign(session_, data_.get(), datalen_, output, &output_len));
+  EXPECT_EQ(info_.mac_size, output_len);
+  ASSERT_CKR_OK(g_fns->C_VerifyInit(session_, &mechanism_, key_));
+  EXPECT_CKR_OK(g_fns->C_Verify(session_, data_.get(), datalen_, output, output_len));
+}
+
 TEST_P(HmacTest, SignVerify) {
   Create();
   CK_RV rv = g_fns->C_SignInit(session_, &mechanism_, key_);

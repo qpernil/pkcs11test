@@ -120,6 +120,8 @@ unsigned big-endian value `00 01 00 01`. RSA encryption checks ciphertext length
 against the actual modulus size. HMAC generation supplies `CKA_VALUE_LEN`. Generic generation requests
 `CKK_GENERIC_SECRET`; separate typed-generation cases use the corresponding
 standard SHA key-generation mechanisms and verify the resulting key type.
+Independent generic-generation cases explicitly request each SHA HMAC key type
+and check the resulting type, signing, and verification.
 Diagnostics name `CKM_SHA_1_KEY_GEN`, `CKM_SHA256_KEY_GEN`,
 `CKM_SHA384_KEY_GEN`, and `CKM_SHA512_KEY_GEN` even with the bundled 2.2 headers.
 Secret-key import checks use a complete AES key, not an empty value. HMAC
